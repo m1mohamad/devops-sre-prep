@@ -1,0 +1,10 @@
+:root { --peh-measure: 78ch; }
+.md-typeset { font-size: .82rem; line-height: 1.75; }
+.md-typeset h1, .md-typeset h2, .md-typeset h3 { font-weight: 800; letter-spacing: -0.02em; }
+.md-typeset h1 { border-bottom: 3px solid var(--md-accent-fg-color); padding-bottom: .35rem; }
+.md-typeset p, .md-typeset li { max-width: var(--peh-measure); }
+.md-typeset table:not([class]) { font-size: .72rem; border-radius: .5rem; overflow: hidden; }
+.md-typeset .admonition, .md-typeset details { border-radius: .7rem; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+.md-typeset code { border-radius: .3rem; }
+.mermaid { margin: 1.25rem 0; padding: 1rem; border: 1px solid var(--md-default-fg-color--lightest); border-radius: .8rem; background: var(--md-code-bg-color); }
+@media print { .md-sidebar, .md-header, .md-tabs, .md-footer, .md-content__button { display: none !important; } .md-content { margin: 0 !important; } .md-typeset { font-size: 10pt; color: #000; } a { color: #000; text-decoration: none; } }
