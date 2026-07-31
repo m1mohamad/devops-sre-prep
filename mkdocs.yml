@@ -1,0 +1,124 @@
+site_name: Platform Engineer Handbook
+site_description: A production-grade platform engineering handbook, architecture library, interview companion, simulator, and engineering journey.
+site_url: https://example.github.io/devops-sre-prep/
+repo_url: https://github.com/example/devops-sre-prep
+repo_name: devops-sre-prep
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  language: en
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - search.share
+    - toc.follow
+    - content.action.edit
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: date
+  - minify:
+      minify_html: true
+  - awesome-pages
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra_css:
+  - styles/handbook.css
+extra_javascript:
+  - assets/mermaid-theme.js
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/example/devops-sre-prep
+
+nav:
+  - Home: index.md
+  - Handbook:
+      - Overview: chapters/index.md
+      - Software Delivery: chapters/software-delivery.md
+      - Containers: chapters/containers.md
+      - Kubernetes: chapters/kubernetes.md
+      - GitOps: chapters/gitops.md
+      - AWS Foundations: chapters/aws-foundations.md
+      - Observability: chapters/observability.md
+      - Security: chapters/security.md
+      - Reliability: chapters/reliability.md
+      - AI Platforms: chapters/ai-platforms.md
+  - Architecture Library: architecture/index.md
+  - Interview Companion: interview/index.md
+  - Production Simulator: simulator/index.md
+  - Engineering Journey: journey/index.md
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
