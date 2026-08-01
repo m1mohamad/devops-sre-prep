@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Observability and distributed-systems fundamentals
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Observability](observability.md) · [Kubernetes](kubernetes.md) · [GitOps](gitops.md)
+
+### Next topics
+
+SLIs, SLOs, and error budgets · Capacity planning · Incident learning
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    High availability is an architectural property; reliability is the observed probability of correct service.
+
+### Industry example
+
+A team pauses feature releases when error-budget burn shows that user-facing reliability is at risk.
+
+### Interview questions
+
+- How do you choose an SLI?
+- What action should an error budget trigger?
+
+### Further reading
+
+- [sre.google](https://sre.google/sre-book/service-level-objectives/)
+- [sre.google](https://sre.google/workbook/error-budget-policy/)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)

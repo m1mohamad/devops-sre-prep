@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Networking, identity, and infrastructure-as-code basics
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Security](security.md) · [Kubernetes](kubernetes.md) · [Reliability](reliability.md)
+
+### Next topics
+
+Multi-account landing zones · Workload identity · Managed Kubernetes
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    An AWS account is an isolation and billing boundary; a VPC is a network boundary inside an account.
+
+### Industry example
+
+A platform separates production accounts, centralizes audit logs, and grants short-lived role sessions.
+
+### Interview questions
+
+- How would you structure accounts and organizational units?
+- When should a workload use multiple availability zones?
+
+### Further reading
+
+- [docs.aws.amazon.com](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_best-practices.html)
+- [docs.aws.amazon.com](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)

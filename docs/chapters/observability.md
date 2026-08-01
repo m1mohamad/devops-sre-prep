@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Runtime architecture and basic statistics
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Kubernetes](kubernetes.md) · [Reliability](reliability.md) · [AI Platforms](ai-platforms.md)
+
+### Next topics
+
+OpenTelemetry · Service-level indicators · Alert design
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    Monitoring checks known conditions; observability supports investigating states that were not predicted.
+
+### Industry example
+
+A shared telemetry pipeline correlates a slow request trace with service metrics and structured logs.
+
+### Interview questions
+
+- When should you use metrics, logs, or traces?
+- How do you control telemetry cardinality?
+
+### Further reading
+
+- [opentelemetry.io](https://opentelemetry.io/docs/)
+- [sre.google](https://sre.google/sre-book/monitoring-distributed-systems/)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)

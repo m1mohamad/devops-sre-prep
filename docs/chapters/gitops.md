@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Software Delivery, Git, and Kubernetes reconciliation
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Software Delivery](software-delivery.md) · [Kubernetes](kubernetes.md) · [Security](security.md) · [Reliability](reliability.md)
+
+### Next topics
+
+Argo CD and Flux · Progressive delivery · Infrastructure reconciliation
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    GitOps is not merely YAML in Git: an automated agent must continuously reconcile and report drift.
+
+### Industry example
+
+A pull request changes desired state; a controller applies it and an SLO-driven rollout gates promotion.
+
+### Interview questions
+
+- How is an emergency change handled without permanent drift?
+- What belongs outside a Git repository?
+
+### Further reading
+
+- [opengitops.dev](https://opengitops.dev/)
+- [argo-cd.readthedocs.io](https://argo-cd.readthedocs.io/)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)

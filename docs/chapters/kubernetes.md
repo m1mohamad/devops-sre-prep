@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Containers and basic distributed-systems concepts
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Containers](containers.md) · [GitOps](gitops.md) · [Observability](observability.md) · [Security](security.md) · [Reliability](reliability.md)
+
+### Next topics
+
+Controllers and reconciliation · CRDs and operators · Gateway API
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    A Deployment manages ReplicaSets; a ReplicaSet manages Pods. None of them is the container runtime.
+
+### Industry example
+
+A Deployment controller replaces unhealthy replicas while GitOps restores declarative configuration drift.
+
+### Interview questions
+
+- Explain the controller reconciliation loop.
+- How do requests reach a Pod?
+
+### Further reading
+
+- [kubernetes.io](https://kubernetes.io/docs/concepts/)
+- [gateway-api.sigs.k8s.io](https://gateway-api.sigs.k8s.io/)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)

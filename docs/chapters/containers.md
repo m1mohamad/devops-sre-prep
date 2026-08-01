@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Software Delivery and Linux process fundamentals
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Software Delivery](software-delivery.md) · [Kubernetes](kubernetes.md) · [Security](security.md)
+
+### Next topics
+
+OCI images · Container runtimes · Supply-chain security
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    An image is an immutable filesystem template; a container is a runtime process created from it.
+
+### Industry example
+
+A team builds one OCI image, scans and signs it, then deploys its digest to every environment.
+
+### Interview questions
+
+- What isolation does a container provide?
+- Why pin an image digest rather than a tag?
+
+### Further reading
+
+- [opencontainers.org](https://opencontainers.org/)
+- [docs.docker.com](https://docs.docker.com/)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)

@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Containers, Kubernetes, Observability, and Reliability
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Kubernetes](kubernetes.md) · [Observability](observability.md) · [Reliability](reliability.md) · [Security](security.md)
+
+### Next topics
+
+GPU scheduling · Model serving · Evaluation and drift
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    Model drift is a change in statistical behavior; infrastructure drift is divergence from declared configuration.
+
+### Industry example
+
+A serving platform schedules GPU workloads, traces inference latency, and gates models on quality evaluations.
+
+### Interview questions
+
+- Which signals define a model-serving SLO?
+- How would you share scarce accelerators fairly?
+
+### Further reading
+
+- [kubernetes.io](https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/)
+- [opentelemetry.io](https://opentelemetry.io/docs/)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)
