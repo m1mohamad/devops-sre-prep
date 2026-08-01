@@ -23,6 +23,10 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      - run: python scripts/check_duplicate_content.py
+      - run: python scripts/check_mermaid_blocks.py
+      - run: python scripts/check_required_sections.py
+      - run: python scripts/check_internal_links.py
       - run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
         with:

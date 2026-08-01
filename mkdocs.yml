@@ -1,9 +1,11 @@
 site_name: Platform Engineer Handbook
 site_description: A production-grade platform engineering handbook, architecture library, interview companion, simulator, and engineering journey.
-site_url: https://example.github.io/devops-sre-prep/
-repo_url: https://github.com/example/devops-sre-prep
+site_url: https://m1mohamad.github.io/devops-sre-prep/
+repo_url: https://github.com/m1mohamad/devops-sre-prep
 repo_name: devops-sre-prep
 edit_uri: edit/main/docs/
+exclude_docs: |
+  study/README.md
 
 theme:
   name: material
@@ -97,10 +99,22 @@ extra:
   generator: false
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/example/devops-sre-prep
+      link: https://github.com/m1mohamad/devops-sre-prep
 
 nav:
   - Home: index.md
+  - Study Vault:
+      - Dashboard: study/00-interview-dashboard.md
+      - System Map: study/01-system-map.md
+      - Seven-Day Plan: study/02-seven-day-study-plan.md
+      - Kubernetes: study/kubernetes/index.md
+      - CI/CD: study/cicd/index.md
+      - Infrastructure as Code: study/iac/index.md
+      - AWS: study/aws/index.md
+      - Observability: study/observability/index.md
+      - AI Platform: study/ai-platform/index.md
+      - Platform Engineering: study/platform-engineering/index.md
+      - Interview Practice: study/interview/index.md
   - Handbook:
       - Overview: chapters/index.md
       - Knowledge Graph: knowledge-graph/index.md
@@ -113,13 +127,27 @@ nav:
       - Security: chapters/security.md
       - Reliability: chapters/reliability.md
       - AI Platforms: chapters/ai-platforms.md
-  - Architecture Library: architecture/index.md
+  - Architecture Library:
+      - Overview: architecture/index.md
+      - Code to Production: architecture/code-to-production.md
+      - Kubernetes Control Plane: architecture/kubernetes-control-plane.md
+      - Kubernetes Request Lifecycle: architecture/kubernetes-request-lifecycle.md
+      - Kubernetes Networking: architecture/kubernetes-networking.md
+      - GitOps with Argo CD: architecture/gitops-argocd.md
+      - Terraform AWS Platform: architecture/terraform-aws-platform.md
+      - EKS Production Platform: architecture/eks-production-platform.md
+      - Observability Pipeline: architecture/observability-pipeline.md
+      - Service Mesh: architecture/service-mesh.md
+      - Custom Controller: architecture/custom-controller.md
+      - AI Inference Platform: architecture/ai-inference-platform.md
+      - Multi-Region Platform: architecture/multi-region-platform.md
+      - Incident Response Loop: architecture/incident-response-loop.md
   - Interview Companion: interview/index.md
   - Production Simulator: simulator/index.md
   - Engineering Journey: journey/index.md
 
 validation:
-  omitted_files: warn
+  omitted_files: info
   absolute_links: warn
   unrecognized_links: warn
   anchors: warn

@@ -1,2886 +1,625 @@
-# Platform Engineer Production Simulator
+---
+title: Production Incident Simulator
+tags: [incidents, sre, troubleshooting]
+aliases: [Simulator]
+---
 
-## SaaS Platform
+# Production Simulator
 
-Company Background: A growing saas platform needs a reliable platform for rapid product delivery.
+These are fictional FinAI exercises. Read only through **Recent Changes**, state hypotheses and the next discriminating query, then reveal the timeline and root cause.
 
-Business Requirements: high availability, auditability, self-service delivery, and cost control.
 
-Constraints: compliance, limited operators, legacy workloads, and aggressive growth.
+# Scenario 1: Pending Pods in One Availability Zone
+
+## Business Impact
+
+Checkout scoring capacity is 40% below target; p95 queue time is rising.
+
+## Architecture
 
 ```mermaid
----
-title: SaaS Platform Architecture
----
-flowchart TB
-  Users-->Edge[Edge/DNS/WAF]
-  Edge-->Ingress
-  Ingress-->Services
-  Services-->Data[(Databases)]
-  Services-->Queue[(Events)]
-  Services-->Obs[Monitoring Stack]
-  Git[GitOps Repo]-->Argo[ArgoCD]
-  Argo-->Services
+flowchart LR
+  User1[Customer or engineer] --> Edge1[Edge/control API]
+  Edge1 --> Work1[Kubernetes workload]
+  Work1 --> Dep1[Cloud or data dependency]
+  Work1 --> Obs1[Telemetry]
 ```
-### Incident: Cluster Upgrade
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate cluster upgrade.
+## Initial Symptoms
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+## Available Evidence
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+### Metrics
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+`scheduler_pending_pods{reason="Unschedulable"}=18; node GPU allocatable is unchanged.`
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+### Logs
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+`0/12 nodes available: 3 untolerated taint, 9 did not match Pod node affinity.`
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+### Events
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+`FailedScheduling repeated after a node-group label migration.`
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+### Recent Changes
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+The change record and audit trail match the event evidence above; no other production change is in the window.
 
-Lessons Learned: design for debuggability before the incident.
+> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
 
-### Incident: Production Outage
+## Investigation Timeline
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate production outage.
+1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
+2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
+3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
+4. **T+15:** Test the highest-information hypothesis without destructive restarts.
+5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+## Root Cause
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+Node group label changed from accelerator=a10 to gpu-class=a10g, while the Deployment retained the old required affinity.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+## Immediate Mitigation
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+Revert the label/config mismatch or patch reviewed Git intent; pause rollout.
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+## Permanent Fix
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+Validate selectors against provisioner/node templates and canary node-group migrations. The fix is deployed progressively and verified under representative failure and load conditions.
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+## Prevention
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+## SLO and Alert Improvements
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
 
-Lessons Learned: design for debuggability before the incident.
+## Interview Discussion
 
-### Incident: Database Failure
+Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate database failure.
+## What Would a Staff Engineer Change?
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+# Scenario 2: Argo CD Drift from a Manual Change
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+## Business Impact
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+A fraud API remains available, but unreviewed replica and environment changes violate audit controls.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Certificate Expiration
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate certificate expiration.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: DNS Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate dns failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: etcd Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate etcd corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Node Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate node failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Region Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate region failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Secrets Leak
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate secrets leak.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Compromised Container
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate compromised container.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Kubernetes API Down
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate kubernetes api down.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: ArgoCD Drift
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate argocd drift.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Terraform State Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate terraform state corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: GitOps Conflict
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate gitops conflict.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: AI Model Rollout Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate ai model rollout failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-## FinTech
-
-Company Background: A growing fintech needs a reliable platform for rapid product delivery.
-
-Business Requirements: high availability, auditability, self-service delivery, and cost control.
-
-Constraints: compliance, limited operators, legacy workloads, and aggressive growth.
+## Architecture
 
 ```mermaid
----
-title: FinTech Architecture
----
-flowchart TB
-  Users-->Edge[Edge/DNS/WAF]
-  Edge-->Ingress
-  Ingress-->Services
-  Services-->Data[(Databases)]
-  Services-->Queue[(Events)]
-  Services-->Obs[Monitoring Stack]
-  Git[GitOps Repo]-->Argo[ArgoCD]
-  Argo-->Services
+flowchart LR
+  User2[Customer or engineer] --> Edge2[Edge/control API]
+  Edge2 --> Work2[Kubernetes workload]
+  Work2 --> Dep2[Cloud or data dependency]
+  Work2 --> Obs2[Telemetry]
 ```
-### Incident: Cluster Upgrade
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate cluster upgrade.
+## Initial Symptoms
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+## Available Evidence
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+### Metrics
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+`Argo application reconciliation count rises; replicas oscillate between 6 and 10.`
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+### Logs
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+`Argo diff reports /spec/replicas and one environment value; audit log names an engineer.`
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+### Events
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+`A manual kubectl scale occurred during a traffic spike.`
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+### Recent Changes
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+The change record and audit trail match the event evidence above; no other production change is in the window.
 
-Lessons Learned: design for debuggability before the incident.
+> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
 
-### Incident: Production Outage
+## Investigation Timeline
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate production outage.
+1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
+2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
+3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
+4. **T+15:** Test the highest-information hypothesis without destructive restarts.
+5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+## Root Cause
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+A manual emergency patch conflicted with automated sync and HPA ownership was not defined.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+## Immediate Mitigation
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+Commit the intended emergency value or revert the manual patch; assign field ownership.
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+## Permanent Fix
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+Create an audited break-glass path and let HPA own replicas while Git owns bounds. The fix is deployed progressively and verified under representative failure and load conditions.
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+## Prevention
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+## SLO and Alert Improvements
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
 
-Lessons Learned: design for debuggability before the incident.
+## Interview Discussion
 
-### Incident: Database Failure
+Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate database failure.
+## What Would a Staff Engineer Change?
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+# Scenario 3: Bad Container Image in Production
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+## Business Impact
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+New Pods fail and available replicas approach the disruption floor.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Certificate Expiration
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate certificate expiration.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: DNS Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate dns failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: etcd Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate etcd corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Node Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate node failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Region Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate region failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Secrets Leak
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate secrets leak.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Compromised Container
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate compromised container.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Kubernetes API Down
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate kubernetes api down.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: ArgoCD Drift
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate argocd drift.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Terraform State Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate terraform state corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: GitOps Conflict
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate gitops conflict.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: AI Model Rollout Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate ai model rollout failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-## Healthcare
-
-Company Background: A growing healthcare needs a reliable platform for rapid product delivery.
-
-Business Requirements: high availability, auditability, self-service delivery, and cost control.
-
-Constraints: compliance, limited operators, legacy workloads, and aggressive growth.
+## Architecture
 
 ```mermaid
----
-title: Healthcare Architecture
----
-flowchart TB
-  Users-->Edge[Edge/DNS/WAF]
-  Edge-->Ingress
-  Ingress-->Services
-  Services-->Data[(Databases)]
-  Services-->Queue[(Events)]
-  Services-->Obs[Monitoring Stack]
-  Git[GitOps Repo]-->Argo[ArgoCD]
-  Argo-->Services
+flowchart LR
+  User3[Customer or engineer] --> Edge3[Edge/control API]
+  Edge3 --> Work3[Kubernetes workload]
+  Work3 --> Dep3[Cloud or data dependency]
+  Work3 --> Obs3[Telemetry]
 ```
-### Incident: Cluster Upgrade
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate cluster upgrade.
+## Initial Symptoms
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+## Available Evidence
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+### Metrics
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+`Image pull succeeds; readiness is 0 and restart count climbs.`
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+### Logs
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+`exec format error appears before application logging initializes.`
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+### Events
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+`Rollout references a new multi-architecture digest built on an ARM-only runner.`
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+### Recent Changes
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+The change record and audit trail match the event evidence above; no other production change is in the window.
 
-Lessons Learned: design for debuggability before the incident.
+> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
 
-### Incident: Production Outage
+## Investigation Timeline
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate production outage.
+1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
+2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
+3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
+4. **T+15:** Test the highest-information hypothesis without destructive restarts.
+5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+## Root Cause
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+The manifest list omitted amd64 while policy checked signature but not required platform compatibility.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+## Immediate Mitigation
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+Revert Git to the previous verified digest and stop progression.
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+## Permanent Fix
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+Build a multi-platform index, run target-architecture smoke tests, and attest platform metadata. The fix is deployed progressively and verified under representative failure and load conditions.
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+## Prevention
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+## SLO and Alert Improvements
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
 
-Lessons Learned: design for debuggability before the incident.
+## Interview Discussion
 
-### Incident: Database Failure
+Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate database failure.
+## What Would a Staff Engineer Change?
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+# Scenario 4: Terraform State Lock and Suspected Corruption
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+## Business Impact
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+A network security fix cannot be planned while teams fear concurrent mutation.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Certificate Expiration
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate certificate expiration.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: DNS Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate dns failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: etcd Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate etcd corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Node Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate node failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Region Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate region failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Secrets Leak
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate secrets leak.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Compromised Container
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate compromised container.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Kubernetes API Down
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate kubernetes api down.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: ArgoCD Drift
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate argocd drift.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Terraform State Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate terraform state corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: GitOps Conflict
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate gitops conflict.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: AI Model Rollout Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate ai model rollout failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-## AI Startup
-
-Company Background: A growing ai startup needs a reliable platform for rapid product delivery.
-
-Business Requirements: high availability, auditability, self-service delivery, and cost control.
-
-Constraints: compliance, limited operators, legacy workloads, and aggressive growth.
+## Architecture
 
 ```mermaid
----
-title: AI Startup Architecture
----
-flowchart TB
-  Users-->Edge[Edge/DNS/WAF]
-  Edge-->Ingress
-  Ingress-->Services
-  Services-->Data[(Databases)]
-  Services-->Queue[(Events)]
-  Services-->Obs[Monitoring Stack]
-  Git[GitOps Repo]-->Argo[ArgoCD]
-  Argo-->Services
+flowchart LR
+  User4[Customer or engineer] --> Edge4[Edge/control API]
+  Edge4 --> Work4[Kubernetes workload]
+  Work4 --> Dep4[Cloud or data dependency]
+  Work4 --> Obs4[Telemetry]
 ```
-### Incident: Cluster Upgrade
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate cluster upgrade.
+## Initial Symptoms
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+## Available Evidence
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+### Metrics
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+`Backend latency normal; no active CI jobs; lock age is 74 minutes.`
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+### Logs
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+`Terraform reports ConditionalCheckFailedException for the state lock identifier.`
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+### Events
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+`A CI runner was terminated during apply after changing two routes.`
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+### Recent Changes
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+The change record and audit trail match the event evidence above; no other production change is in the window.
 
-Lessons Learned: design for debuggability before the incident.
+> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
 
-### Incident: Production Outage
+## Investigation Timeline
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate production outage.
+1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
+2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
+3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
+4. **T+15:** Test the highest-information hypothesis without destructive restarts.
+5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+## Root Cause
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+The terminated apply left a stale lock; remote infrastructure may be partially changed but state is not proven corrupt.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+## Immediate Mitigation
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+Preserve state, confirm no writer, inspect lock owner, take a backend version, then force-unlock only that ID and run refresh-only plan.
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+## Permanent Fix
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+Use cancellation-safe runners, serialize per state, alert on lock age, version state, and rehearse recovery/import. The fix is deployed progressively and verified under representative failure and load conditions.
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+## Prevention
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+## SLO and Alert Improvements
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
 
-Lessons Learned: design for debuggability before the incident.
+## Interview Discussion
 
-### Incident: Database Failure
+Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate database failure.
+## What Would a Staff Engineer Change?
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+# Scenario 5: Certificate Renewal Failure
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+## Business Impact
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+Browsers will reject the customer API in 19 hours if renewal does not recover.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Certificate Expiration
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate certificate expiration.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: DNS Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate dns failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: etcd Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate etcd corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Node Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate node failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Region Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate region failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Secrets Leak
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate secrets leak.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Compromised Container
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate compromised container.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Kubernetes API Down
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate kubernetes api down.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: ArgoCD Drift
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate argocd drift.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Terraform State Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate terraform state corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: GitOps Conflict
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate gitops conflict.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: AI Model Rollout Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate ai model rollout failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-## Telecom
-
-Company Background: A growing telecom needs a reliable platform for rapid product delivery.
-
-Business Requirements: high availability, auditability, self-service delivery, and cost control.
-
-Constraints: compliance, limited operators, legacy workloads, and aggressive growth.
+## Architecture
 
 ```mermaid
----
-title: Telecom Architecture
----
-flowchart TB
-  Users-->Edge[Edge/DNS/WAF]
-  Edge-->Ingress
-  Ingress-->Services
-  Services-->Data[(Databases)]
-  Services-->Queue[(Events)]
-  Services-->Obs[Monitoring Stack]
-  Git[GitOps Repo]-->Argo[ArgoCD]
-  Argo-->Services
+flowchart LR
+  User5[Customer or engineer] --> Edge5[Edge/control API]
+  Edge5 --> Work5[Kubernetes workload]
+  Work5 --> Dep5[Cloud or data dependency]
+  Work5 --> Obs5[Telemetry]
 ```
-### Incident: Cluster Upgrade
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate cluster upgrade.
+## Initial Symptoms
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+## Available Evidence
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+### Metrics
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+`cert-manager certificate_expiration_timestamp_seconds falls; renewal errors rise.`
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+### Logs
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+`ACME challenge reports propagation check failed for TXT record.`
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+### Events
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+`Events show DNS01 self-check timeout; no Certificate revision created.`
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+### Recent Changes
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+The change record and audit trail match the event evidence above; no other production change is in the window.
 
-Lessons Learned: design for debuggability before the incident.
+> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
 
-### Incident: Production Outage
+## Investigation Timeline
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate production outage.
+1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
+2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
+3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
+4. **T+15:** Test the highest-information hypothesis without destructive restarts.
+5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+## Root Cause
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+DNS IAM policy rotation removed ChangeResourceRecordSets for the solver role.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+## Immediate Mitigation
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+Restore least-privilege DNS permission, retry the challenge, and verify the served chain externally.
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+## Permanent Fix
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+Test issuer credentials continuously, alert on renewal failure and expiry windows, and stage IAM changes. The fix is deployed progressively and verified under representative failure and load conditions.
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+## Prevention
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+## SLO and Alert Improvements
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
 
-Lessons Learned: design for debuggability before the incident.
+## Interview Discussion
 
-### Incident: Database Failure
+Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate database failure.
+## What Would a Staff Engineer Change?
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+# Scenario 6: DNS and Load Balancer Outage
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+## Business Impact
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+A subset of regions cannot resolve or connect to the fraud API.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Certificate Expiration
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate certificate expiration.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: DNS Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate dns failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: etcd Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate etcd corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Node Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate node failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Region Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate region failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Secrets Leak
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate secrets leak.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Compromised Container
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate compromised container.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Kubernetes API Down
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate kubernetes api down.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: ArgoCD Drift
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate argocd drift.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Terraform State Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate terraform state corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: GitOps Conflict
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate gitops conflict.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: AI Model Rollout Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate ai model rollout failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-## E-commerce
-
-Company Background: A growing e-commerce needs a reliable platform for rapid product delivery.
-
-Business Requirements: high availability, auditability, self-service delivery, and cost control.
-
-Constraints: compliance, limited operators, legacy workloads, and aggressive growth.
+## Architecture
 
 ```mermaid
----
-title: E-commerce Architecture
----
-flowchart TB
-  Users-->Edge[Edge/DNS/WAF]
-  Edge-->Ingress
-  Ingress-->Services
-  Services-->Data[(Databases)]
-  Services-->Queue[(Events)]
-  Services-->Obs[Monitoring Stack]
-  Git[GitOps Repo]-->Argo[ArgoCD]
-  Argo-->Services
+flowchart LR
+  User6[Customer or engineer] --> Edge6[Edge/control API]
+  Edge6 --> Work6[Kubernetes workload]
+  Work6 --> Dep6[Cloud or data dependency]
+  Work6 --> Obs6[Telemetry]
 ```
-### Incident: Cluster Upgrade
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate cluster upgrade.
+## Initial Symptoms
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+## Available Evidence
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+### Metrics
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+`ALB targets are healthy; Route 53 NXDOMAIN increases only through one resolver path.`
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+### Logs
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+`CoreDNS logs upstream i/o timeout; node conntrack and NAT ports are saturated.`
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+### Events
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+`Cluster egress shifted through a smaller NAT gateway during cost work.`
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+### Recent Changes
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+The change record and audit trail match the event evidence above; no other production change is in the window.
 
-Lessons Learned: design for debuggability before the incident.
+> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
 
-### Incident: Production Outage
+## Investigation Timeline
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate production outage.
+1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
+2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
+3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
+4. **T+15:** Test the highest-information hypothesis without destructive restarts.
+5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+## Root Cause
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+Resolver traffic to upstream DNS shared an exhausted egress/conntrack path.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+## Immediate Mitigation
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+Restore egress capacity and route DNS through resilient endpoints; avoid random Pod restarts.
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+## Permanent Fix
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+Separate DNS dependencies, cache safely, monitor resolver latency/rcode, and load-test egress changes. The fix is deployed progressively and verified under representative failure and load conditions.
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+## Prevention
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+## SLO and Alert Improvements
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
 
-Lessons Learned: design for debuggability before the incident.
+## Interview Discussion
 
-### Incident: Database Failure
+Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate database failure.
+## What Would a Staff Engineer Change?
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+# Scenario 7: Database Connection Exhaustion
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+## Business Impact
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+Fraud decisions time out although CPU and database query latency remain normal.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Certificate Expiration
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate certificate expiration.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: DNS Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate dns failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: etcd Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate etcd corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Node Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate node failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Region Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate region failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Secrets Leak
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate secrets leak.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Compromised Container
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate compromised container.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Kubernetes API Down
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate kubernetes api down.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: ArgoCD Drift
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate argocd drift.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Terraform State Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate terraform state corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: GitOps Conflict
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate gitops conflict.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: AI Model Rollout Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate ai model rollout failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-## Streaming Platform
-
-Company Background: A growing streaming platform needs a reliable platform for rapid product delivery.
-
-Business Requirements: high availability, auditability, self-service delivery, and cost control.
-
-Constraints: compliance, limited operators, legacy workloads, and aggressive growth.
+## Architecture
 
 ```mermaid
----
-title: Streaming Platform Architecture
----
-flowchart TB
-  Users-->Edge[Edge/DNS/WAF]
-  Edge-->Ingress
-  Ingress-->Services
-  Services-->Data[(Databases)]
-  Services-->Queue[(Events)]
-  Services-->Obs[Monitoring Stack]
-  Git[GitOps Repo]-->Argo[ArgoCD]
-  Argo-->Services
+flowchart LR
+  User7[Customer or engineer] --> Edge7[Edge/control API]
+  Edge7 --> Work7[Kubernetes workload]
+  Work7 --> Dep7[Cloud or data dependency]
+  Work7 --> Obs7[Telemetry]
 ```
-### Incident: Cluster Upgrade
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate cluster upgrade.
+## Initial Symptoms
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+## Available Evidence
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+### Metrics
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+`RDS connections at maximum; each new Pod holds a full 40-connection pool.`
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+### Logs
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+`Applications log remaining connection slots are reserved; no slow-query spike.`
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+### Events
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+`HPA doubled replicas after a traffic burst.`
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+### Recent Changes
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+The change record and audit trail match the event evidence above; no other production change is in the window.
 
-Lessons Learned: design for debuggability before the incident.
+> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
 
-### Incident: Production Outage
+## Investigation Timeline
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate production outage.
+1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
+2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
+3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
+4. **T+15:** Test the highest-information hypothesis without destructive restarts.
+5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+## Root Cause
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+Per-process pools multiplied past the database connection budget when replicas scaled.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+## Immediate Mitigation
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+Cap rollout/replicas, reduce pools, recycle safely, and use a pooler if already validated.
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+## Permanent Fix
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+Budget connections across max replicas, alert on headroom, load-test autoscaling, and apply admission/config checks. The fix is deployed progressively and verified under representative failure and load conditions.
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+## Prevention
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+## SLO and Alert Improvements
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
 
-Lessons Learned: design for debuggability before the incident.
+## Interview Discussion
 
-### Incident: Database Failure
+Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate database failure.
+## What Would a Staff Engineer Change?
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+# Scenario 8: LLM Inference Latency and GPU Exhaustion
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+## Business Impact
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+Analyst explanations exceed the latency SLO and requests queue, but errors remain low.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+## Architecture
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+```mermaid
+flowchart LR
+  User8[Customer or engineer] --> Edge8[Edge/control API]
+  Edge8 --> Work8[Kubernetes workload]
+  Work8 --> Dep8[Cloud or data dependency]
+  Work8 --> Obs8[Telemetry]
+```
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+## Initial Symptoms
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+## Available Evidence
 
-Lessons Learned: design for debuggability before the incident.
+### Metrics
 
-### Incident: Certificate Expiration
+`GPU memory is 99%; utilization 38%; time-to-first-token doubled and batch queue grows.`
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate certificate expiration.
+### Logs
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+`vLLM reports KV-cache preemption and frequent recomputation.`
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+### Events
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+`A longer context limit and higher concurrency were enabled together.`
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+### Recent Changes
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+The change record and audit trail match the event evidence above; no other production change is in the window.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+## Investigation Timeline
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
+2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
+3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
+4. **T+15:** Test the highest-information hypothesis without destructive restarts.
+5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
+## Root Cause
 
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
+KV-cache demand exceeded GPU memory; preemption/recomputation reduced useful compute despite low utilization.
 
-Lessons Learned: design for debuggability before the incident.
+## Immediate Mitigation
 
-### Incident: DNS Failure
+Revert context/concurrency, shed low-priority work, route to compatible spare capacity.
 
-Symptoms: latency, errors, alerts, or failed reconciliations indicate dns failure.
+## Permanent Fix
 
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
+Capacity-test token distributions, bound context/concurrency, expose cache metrics, and autoscale on queue/token demand. The fix is deployed progressively and verified under representative failure and load conditions.
 
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
+## Prevention
 
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
+Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
 
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
+## SLO and Alert Improvements
 
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
+Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
 
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
+## Interview Discussion
 
-Postmortem: focus on contributing factors and durable improvements, not blame.
+Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
 
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
+## What Would a Staff Engineer Change?
 
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: etcd Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate etcd corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Node Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate node failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Region Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate region failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Secrets Leak
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate secrets leak.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Compromised Container
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate compromised container.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Kubernetes API Down
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate kubernetes api down.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: ArgoCD Drift
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate argocd drift.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: Terraform State Corruption
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate terraform state corruption.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: GitOps Conflict
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate gitops conflict.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
-### Incident: AI Model Rollout Failure
-
-Symptoms: latency, errors, alerts, or failed reconciliations indicate ai model rollout failure.
-
-How Engineers Notice: paging alerts, customer reports, dashboard anomalies, and failed deploy notifications.
-
-Metrics: error rate, saturation, request duration, queue depth, and control-plane health.
-
-Logs: correlate application, ingress, controller, audit, and cloud provider logs.
-
-Root Cause: an unsafe change or hidden dependency exceeded the designed failure boundary.
-
-Investigation Timeline: detect, declare, stabilize, inspect recent changes, mitigate, verify, and document.
-
-Recovery: rollback, fail over, rotate credentials, repair state, or scale capacity as appropriate.
-
-Postmortem: focus on contributing factors and durable improvements, not blame.
-
-Long-term Improvements: better SLOs, game days, policy checks, runbooks, and automation.
-
-Staff Engineer Discussion: balance speed, safety, ownership, and migration cost.
-
-Architecture Tradeoffs: redundancy reduces risk but increases operational complexity.
-
-Lessons Learned: design for debuggability before the incident.
-
+Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
