@@ -1,114 +1,76 @@
 ---
 title: CRDs, Operators, and Admission
-tags:
-  - kubernetes
-  - platform-engineering
-aliases:
-  - CRDs, Operators, and Admission study note
+tags: [kubernetes, platform-engineering]
+aliases: [CRDs, Operators, and Admission study note]
 ---
 
 # CRDs, Operators, and Admission
 
 ## 30-Second Answer
 
-For **CRDs, Operators, and Admission**, start from the contract visible to its consumer, then trace ownership through control-plane state, runtime execution, and telemetry. The design is only complete when degraded behavior and recovery are explicit. In production I define an SLO, an owner, a safe rollout path, and evidence that distinguishes desired-state failure from runtime or dependency failure.
+CRDs, Operators, and Admission is the path from **CustomResourceDefinition** to **status and finalizer**. The essential handoffs are structural schema, conversion webhook, admission webhook, controller. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
 
 ## Mental Model
 
-Treat the topic as a feedback system: intent enters a durable control surface, reconcilers or workers act, and signals report whether the user-visible outcome matches intent.
-
 ```mermaid
 flowchart LR
-  Intent[Reviewed intent] --> Control[CRDs, Operators, and Admission control]
-  Control --> Runtime[Runtime outcome]
-  Runtime --> Signals[Metrics logs traces events]
-  Signals --> Decision[Operator or controller decision]
-  Decision --> Intent
+  N0[CustomResourceDefinition] --> N1[structural schema] --> N2[conversion webhook] --> N3[admission webhook] --> N4[controller] --> N5[status and finalizer]
 ```
 
-The arrows matter more than the boxes. A successful API response proves acceptance, not completion. Status and telemetry must expose asynchronous progress.
+Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **controller** has different evidence and ownership from a failure at **structural schema**.
 
 ## Why It Exists
 
-Many workloads must be placed, restarted, networked, and updated without operators hand-editing individual hosts. CRDs, Operators, and Admission provides a repeatable boundary for that problem. Standardization enables policy and automation, but the abstraction must retain escape hatches and debuggable underlying resources.
-
-A senior design begins with workload characteristics: availability target, latency, recovery point and time objectives, data sensitivity, expected scale, tenant isolation, and the team that carries the pager. Those constraints determine whether the mechanism is justified.
+Without crds, operators, and admission, teams must manually coordinate customresourcedefinition, admission webhook, and status and finalizer. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
 
 ## How It Works
 
-Declarative API objects flow through authenticated and authorized writes. Controllers consume watches through informers and reconcile cached state; kubelets and plugins turn accepted intent into running workloads.
+**CustomResourceDefinition** owns stage 1; **structural schema** owns stage 2; **conversion webhook** owns stage 3; **admission webhook** owns stage 4; **controller** owns stage 5; **status and finalizer** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
 
-For this topic, separate four states:
+## Mechanisms
 
-1. **Source intent** — reviewed configuration, code, or policy.
-2. **Accepted state** — the control plane validated and persisted the request.
-3. **Observed state** — controllers or workers report what currently exists.
-4. **Serving state** — users receive correct results within the objective.
-
-Never collapse those states into “deployed.” Correlate stable identifiers such as commit SHA, artifact digest, resource UID, deployment revision, account, region, and trace ID. Make mutations idempotent, bound retries with backoff and jitter, and send irrecoverable work to an explicit failure path rather than retrying forever.
+* **CustomResourceDefinition:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **structural schema:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **conversion webhook:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **admission webhook:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **controller:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **status and finalizer:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
 
 ## Production Architecture
 
-A realistic deployment uses separate production and non-production boundaries, least-privilege workload identity, immutable artifacts, policy at admission or deployment time, and centralized telemetry. Changes move through automated checks and progressive exposure; rollback changes declarative intent to a previously verified version.
-
-```mermaid
-flowchart TB
-  Git[Reviewed source] --> CI[Build and verify]
-  CI --> Artifact[Immutable artifact and provenance]
-  Artifact --> Reconciler[Environment reconciler]
-  Policy[Policy and identity] --> Reconciler
-  Reconciler --> AZ1[Failure domain A]
-  Reconciler --> AZ2[Failure domain B]
-  AZ1 --> Telemetry[Telemetry pipeline]
-  AZ2 --> Telemetry
-  Telemetry --> Oncall[Service owner]
-```
-
-Ownership is split deliberately: the platform team owns the contract and shared control plane; service teams own workload configuration, SLOs, and response; security owns control objectives while implementation remains automated and testable.
+Deploy customresourcedefinition with least privilege and an auditable change path. Isolate admission webhook by environment and failure domain, make status and finalizer observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
 
 ## Failure Modes
 
-| Failure | Symptom | Diagnosis | Mitigation |
-| ------- | ------- | --------- | ---------- |
-| Invalid intent | Request rejected or reconciliation stalled | Inspect validation output, conditions, and recent diff | Correct source; do not patch production around review |
-| Control-plane lag | Accepted change never converges | Check queue depth, leader, API errors, and rate limits | Restore controller capacity; replay idempotently |
-| Capacity exhaustion | Pending work and rising latency | Compare demand with quotas, requests, and saturation | Shed load, scale a valid pool, then tune forecasts |
-| Dependency failure | Healthy process but failed requests | Follow traces and dependency error budgets | Fail closed/open deliberately; use bounded fallback |
-| Silent drift | Runtime differs from reviewed intent | Diff source, accepted, and live state with audit events | Revert unauthorized mutation and remove its path |
+| Failure | Evidence | Response |
+|---|---|---|
+| API or watch lag hides progress | Compare stage latency and revision at structural schema | Stop promotion and restore the last verified input |
+| resource, IP, or storage capacity blocks convergence | Inspect saturation, quotas, events, and pending work at admission webhook | Add valid capacity or shed load; do not retry without a bound |
+| a probe or policy reports a misleading serving state | Compare the user result with status and finalizer and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
 
 ## Trade-offs
 
-Automation increases consistency but can amplify a bad decision quickly. Strong isolation reduces blast radius but adds cost and operational surfaces. Rich abstractions speed common work but obscure internals during unusual failures. Adopt CRDs, Operators, and Admission when repeated demand and risk justify a supported product; avoid adding another control plane for a one-off workload that a simpler managed service can satisfy.
-
-Prefer boring, observable defaults. Document unsupported cases, version contracts, test upgrades against representative workloads, and measure whether users actually succeed without tickets. “More features” is not a platform outcome.
+More automation across customresourcedefinition and status and finalizer improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
 
 ## Lead-Level Follow-ups
 
-* Where is durable state, and what are its backup and restore semantics?
-* Which action crosses a trust boundary, and how is workload identity issued?
-* How does the system behave when its controller or telemetry backend is unavailable?
-* Which metric proves the abstraction improves delivery rather than moving toil?
+* Which team owns **admission webhook**, and what user-facing SLO proves it works?
+* What remains available when **structural schema** is down?
+* Where is state durable, and how are restore and upgrade tested?
 
 ## My Experience Prompt
 
-Describe a production change involving CRDs, Operators, and Admission. What constraint selected the design? Name the first signal, the misleading signal, the rollback decision, and one durable improvement. Quantify blast radius or recovery time without inventing business results.
+Describe a change to admission webhook: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
 
 ## Recall Check
 
-1. What is the consumer-facing contract for CRDs, Operators, and Admission?
-2. How do accepted, observed, and serving state differ?
-3. Which component owns retries and idempotency?
-4. What capacity signal should page before user impact?
-5. When would a simpler design be safer?
+1. What does **CustomResourceDefinition** send to **structural schema**?
+2. Which component stores or reports authoritative state?
+3. How does **controller** affect **status and finalizer**?
+4. Which capacity limit fails first at production scale?
+5. When is a simpler managed alternative preferable?
 
 ## Related Notes
 
-* [Next focused note](08-gitops-argo-cd-and-flux.md)
-* [Deeper handbook chapter](../../chapters/kubernetes.md)
+* [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
-
-## Further Reading
-
-* [Kubernetes documentation](https://kubernetes.io/docs/)
-* [AWS Well-Architected Framework](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)
-* [OpenTelemetry documentation](https://opentelemetry.io/docs/)

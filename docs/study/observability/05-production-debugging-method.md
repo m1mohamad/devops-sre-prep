@@ -1,114 +1,76 @@
 ---
 title: Production Debugging Method
-tags:
-  - observability
-  - platform-engineering
-aliases:
-  - Production Debugging Method study note
+tags: [observability, platform-engineering]
+aliases: [Production Debugging Method study note]
 ---
 
 # Production Debugging Method
 
 ## 30-Second Answer
 
-For **Production Debugging Method**, start from the contract visible to its consumer, then trace ownership through control-plane state, runtime execution, and telemetry. The design is only complete when degraded behavior and recovery are explicit. In production I define an SLO, an owner, a safe rollout path, and evidence that distinguishes desired-state failure from runtime or dependency failure.
+Production Debugging Method is the path from **customer symptom** to **mitigation and verification**. The essential handoffs are RED and USE signals, deployment diff, trace exemplar, structured logs. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
 
 ## Mental Model
 
-Treat the topic as a feedback system: intent enters a durable control surface, reconcilers or workers act, and signals report whether the user-visible outcome matches intent.
-
 ```mermaid
 flowchart LR
-  Intent[Reviewed intent] --> Control[Production Debugging Method control]
-  Control --> Runtime[Runtime outcome]
-  Runtime --> Signals[Metrics logs traces events]
-  Signals --> Decision[Operator or controller decision]
-  Decision --> Intent
+  N0[customer symptom] --> N1[RED and USE signals] --> N2[deployment diff] --> N3[trace exemplar] --> N4[structured logs] --> N5[mitigation and verification]
 ```
 
-The arrows matter more than the boxes. A successful API response proves acceptance, not completion. Status and telemetry must expose asynchronous progress.
+Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **structured logs** has different evidence and ownership from a failure at **RED and USE signals**.
 
 ## Why It Exists
 
-Operators cannot infer user impact or causal chains from host health and ad hoc log searches alone. Production Debugging Method provides a repeatable boundary for that problem. Standardization enables policy and automation, but the abstraction must retain escape hatches and debuggable underlying resources.
-
-A senior design begins with workload characteristics: availability target, latency, recovery point and time objectives, data sensitivity, expected scale, tenant isolation, and the team that carries the pager. Those constraints determine whether the mechanism is justified.
+Without production debugging method, teams must manually coordinate customer symptom, trace exemplar, and mitigation and verification. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
 
 ## How It Works
 
-Telemetry is sampled evidence, not truth by itself. Metrics reveal aggregate behavior, logs retain discrete events, and trace context joins causally related work across process boundaries.
+**customer symptom** owns stage 1; **RED and USE signals** owns stage 2; **deployment diff** owns stage 3; **trace exemplar** owns stage 4; **structured logs** owns stage 5; **mitigation and verification** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
 
-For this topic, separate four states:
+## Mechanisms
 
-1. **Source intent** — reviewed configuration, code, or policy.
-2. **Accepted state** — the control plane validated and persisted the request.
-3. **Observed state** — controllers or workers report what currently exists.
-4. **Serving state** — users receive correct results within the objective.
-
-Never collapse those states into “deployed.” Correlate stable identifiers such as commit SHA, artifact digest, resource UID, deployment revision, account, region, and trace ID. Make mutations idempotent, bound retries with backoff and jitter, and send irrecoverable work to an explicit failure path rather than retrying forever.
+* **customer symptom:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **RED and USE signals:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **deployment diff:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **trace exemplar:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **structured logs:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **mitigation and verification:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
 
 ## Production Architecture
 
-A realistic deployment uses separate production and non-production boundaries, least-privilege workload identity, immutable artifacts, policy at admission or deployment time, and centralized telemetry. Changes move through automated checks and progressive exposure; rollback changes declarative intent to a previously verified version.
-
-```mermaid
-flowchart TB
-  Git[Reviewed source] --> CI[Build and verify]
-  CI --> Artifact[Immutable artifact and provenance]
-  Artifact --> Reconciler[Environment reconciler]
-  Policy[Policy and identity] --> Reconciler
-  Reconciler --> AZ1[Failure domain A]
-  Reconciler --> AZ2[Failure domain B]
-  AZ1 --> Telemetry[Telemetry pipeline]
-  AZ2 --> Telemetry
-  Telemetry --> Oncall[Service owner]
-```
-
-Ownership is split deliberately: the platform team owns the contract and shared control plane; service teams own workload configuration, SLOs, and response; security owns control objectives while implementation remains automated and testable.
+Deploy customer symptom with least privilege and an auditable change path. Isolate trace exemplar by environment and failure domain, make mitigation and verification observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
 
 ## Failure Modes
 
-| Failure | Symptom | Diagnosis | Mitigation |
-| ------- | ------- | --------- | ---------- |
-| Invalid intent | Request rejected or reconciliation stalled | Inspect validation output, conditions, and recent diff | Correct source; do not patch production around review |
-| Control-plane lag | Accepted change never converges | Check queue depth, leader, API errors, and rate limits | Restore controller capacity; replay idempotently |
-| Capacity exhaustion | Pending work and rising latency | Compare demand with quotas, requests, and saturation | Shed load, scale a valid pool, then tune forecasts |
-| Dependency failure | Healthy process but failed requests | Follow traces and dependency error budgets | Fail closed/open deliberately; use bounded fallback |
-| Silent drift | Runtime differs from reviewed intent | Diff source, accepted, and live state with audit events | Revert unauthorized mutation and remove its path |
+| Failure | Evidence | Response |
+|---|---|---|
+| cardinality or volume overloads ingestion | Compare stage latency and revision at RED and USE signals | Stop promotion and restore the last verified input |
+| sampling removes the only evidence for a rare failure | Inspect saturation, quotas, events, and pending work at trace exemplar | Add valid capacity or shed load; do not retry without a bound |
+| an unactionable alert pages without user impact | Compare the user result with mitigation and verification and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
 
 ## Trade-offs
 
-Automation increases consistency but can amplify a bad decision quickly. Strong isolation reduces blast radius but adds cost and operational surfaces. Rich abstractions speed common work but obscure internals during unusual failures. Adopt Production Debugging Method when repeated demand and risk justify a supported product; avoid adding another control plane for a one-off workload that a simpler managed service can satisfy.
-
-Prefer boring, observable defaults. Document unsupported cases, version contracts, test upgrades against representative workloads, and measure whether users actually succeed without tickets. “More features” is not a platform outcome.
+More automation across customer symptom and mitigation and verification improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
 
 ## Lead-Level Follow-ups
 
-* Where is durable state, and what are its backup and restore semantics?
-* Which action crosses a trust boundary, and how is workload identity issued?
-* How does the system behave when its controller or telemetry backend is unavailable?
-* Which metric proves the abstraction improves delivery rather than moving toil?
+* Which team owns **trace exemplar**, and what user-facing SLO proves it works?
+* What remains available when **RED and USE signals** is down?
+* Where is state durable, and how are restore and upgrade tested?
 
 ## My Experience Prompt
 
-Describe a production change involving Production Debugging Method. What constraint selected the design? Name the first signal, the misleading signal, the rollback decision, and one durable improvement. Quantify blast radius or recovery time without inventing business results.
+Describe a change to trace exemplar: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
 
 ## Recall Check
 
-1. What is the consumer-facing contract for Production Debugging Method?
-2. How do accepted, observed, and serving state differ?
-3. Which component owns retries and idempotency?
-4. What capacity signal should page before user impact?
-5. When would a simpler design be safer?
+1. What does **customer symptom** send to **RED and USE signals**?
+2. Which component stores or reports authoritative state?
+3. How does **structured logs** affect **mitigation and verification**?
+4. Which capacity limit fails first at production scale?
+5. When is a simpler managed alternative preferable?
 
 ## Related Notes
 
-* [Next focused note](01-metrics-logs-and-traces.md)
-* [Deeper handbook chapter](../../chapters/observability.md)
+* [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
-
-## Further Reading
-
-* [Kubernetes documentation](https://kubernetes.io/docs/)
-* [AWS Well-Architected Framework](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)
-* [OpenTelemetry documentation](https://opentelemetry.io/docs/)

@@ -1,114 +1,76 @@
 ---
 title: Policy, Secrets, and Certificates
-tags:
-  - platform-engineering
-  - platform-engineering
-aliases:
-  - Policy, Secrets, and Certificates study note
+tags: [platform-engineering, platform-engineering]
+aliases: [Policy, Secrets, and Certificates study note]
 ---
 
 # Policy, Secrets, and Certificates
 
 ## 30-Second Answer
 
-For **Policy, Secrets, and Certificates**, start from the contract visible to its consumer, then trace ownership through control-plane state, runtime execution, and telemetry. The design is only complete when degraded behavior and recovery are explicit. In production I define an SLO, an owner, a safe rollout path, and evidence that distinguishes desired-state failure from runtime or dependency failure.
+Policy, Secrets, and Certificates is the path from **policy as code** to **audit evidence**. The essential handoffs are admission controller, external secrets, certificate manager, workload identity. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
 
 ## Mental Model
 
-Treat the topic as a feedback system: intent enters a durable control surface, reconcilers or workers act, and signals report whether the user-visible outcome matches intent.
-
 ```mermaid
 flowchart LR
-  Intent[Reviewed intent] --> Control[Policy, Secrets, and Certificates control]
-  Control --> Runtime[Runtime outcome]
-  Runtime --> Signals[Metrics logs traces events]
-  Signals --> Decision[Operator or controller decision]
-  Decision --> Intent
+  N0[policy as code] --> N1[admission controller] --> N2[external secrets] --> N3[certificate manager] --> N4[workload identity] --> N5[audit evidence]
 ```
 
-The arrows matter more than the boxes. A successful API response proves acceptance, not completion. Status and telemetry must expose asynchronous progress.
+Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **workload identity** has different evidence and ownership from a failure at **admission controller**.
 
 ## Why It Exists
 
-Every team rebuilding delivery and infrastructure patterns creates inconsistent controls and repeated toil. Policy, Secrets, and Certificates provides a repeatable boundary for that problem. Standardization enables policy and automation, but the abstraction must retain escape hatches and debuggable underlying resources.
-
-A senior design begins with workload characteristics: availability target, latency, recovery point and time objectives, data sensitivity, expected scale, tenant isolation, and the team that carries the pager. Those constraints determine whether the mechanism is justified.
+Without policy, secrets, and certificates, teams must manually coordinate policy as code, certificate manager, and audit evidence. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
 
 ## How It Works
 
-A platform publishes supported contracts and paved roads. Product teams consume self-service capabilities while the platform team measures adoption, lead time, reliability, and cognitive load.
+**policy as code** owns stage 1; **admission controller** owns stage 2; **external secrets** owns stage 3; **certificate manager** owns stage 4; **workload identity** owns stage 5; **audit evidence** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
 
-For this topic, separate four states:
+## Mechanisms
 
-1. **Source intent** — reviewed configuration, code, or policy.
-2. **Accepted state** — the control plane validated and persisted the request.
-3. **Observed state** — controllers or workers report what currently exists.
-4. **Serving state** — users receive correct results within the objective.
-
-Never collapse those states into “deployed.” Correlate stable identifiers such as commit SHA, artifact digest, resource UID, deployment revision, account, region, and trace ID. Make mutations idempotent, bound retries with backoff and jitter, and send irrecoverable work to an explicit failure path rather than retrying forever.
+* **policy as code:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **admission controller:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **external secrets:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **certificate manager:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **workload identity:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **audit evidence:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
 
 ## Production Architecture
 
-A realistic deployment uses separate production and non-production boundaries, least-privilege workload identity, immutable artifacts, policy at admission or deployment time, and centralized telemetry. Changes move through automated checks and progressive exposure; rollback changes declarative intent to a previously verified version.
-
-```mermaid
-flowchart TB
-  Git[Reviewed source] --> CI[Build and verify]
-  CI --> Artifact[Immutable artifact and provenance]
-  Artifact --> Reconciler[Environment reconciler]
-  Policy[Policy and identity] --> Reconciler
-  Reconciler --> AZ1[Failure domain A]
-  Reconciler --> AZ2[Failure domain B]
-  AZ1 --> Telemetry[Telemetry pipeline]
-  AZ2 --> Telemetry
-  Telemetry --> Oncall[Service owner]
-```
-
-Ownership is split deliberately: the platform team owns the contract and shared control plane; service teams own workload configuration, SLOs, and response; security owns control objectives while implementation remains automated and testable.
+Deploy policy as code with least privilege and an auditable change path. Isolate certificate manager by environment and failure domain, make audit evidence observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
 
 ## Failure Modes
 
-| Failure | Symptom | Diagnosis | Mitigation |
-| ------- | ------- | --------- | ---------- |
-| Invalid intent | Request rejected or reconciliation stalled | Inspect validation output, conditions, and recent diff | Correct source; do not patch production around review |
-| Control-plane lag | Accepted change never converges | Check queue depth, leader, API errors, and rate limits | Restore controller capacity; replay idempotently |
-| Capacity exhaustion | Pending work and rising latency | Compare demand with quotas, requests, and saturation | Shed load, scale a valid pool, then tune forecasts |
-| Dependency failure | Healthy process but failed requests | Follow traces and dependency error budgets | Fail closed/open deliberately; use bounded fallback |
-| Silent drift | Runtime differs from reviewed intent | Diff source, accepted, and live state with audit events | Revert unauthorized mutation and remove its path |
+| Failure | Evidence | Response |
+|---|---|---|
+| the abstraction hides a failure users must debug | Compare stage latency and revision at admission controller | Stop promotion and restore the last verified input |
+| a mandatory path lacks an escape hatch or migration | Inspect saturation, quotas, events, and pending work at certificate manager | Add valid capacity or shed load; do not retry without a bound |
+| adoption metrics count activity rather than developer outcomes | Compare the user result with audit evidence and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
 
 ## Trade-offs
 
-Automation increases consistency but can amplify a bad decision quickly. Strong isolation reduces blast radius but adds cost and operational surfaces. Rich abstractions speed common work but obscure internals during unusual failures. Adopt Policy, Secrets, and Certificates when repeated demand and risk justify a supported product; avoid adding another control plane for a one-off workload that a simpler managed service can satisfy.
-
-Prefer boring, observable defaults. Document unsupported cases, version contracts, test upgrades against representative workloads, and measure whether users actually succeed without tickets. “More features” is not a platform outcome.
+More automation across policy as code and audit evidence improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
 
 ## Lead-Level Follow-ups
 
-* Where is durable state, and what are its backup and restore semantics?
-* Which action crosses a trust boundary, and how is workload identity issued?
-* How does the system behave when its controller or telemetry backend is unavailable?
-* Which metric proves the abstraction improves delivery rather than moving toil?
+* Which team owns **certificate manager**, and what user-facing SLO proves it works?
+* What remains available when **admission controller** is down?
+* Where is state durable, and how are restore and upgrade tested?
 
 ## My Experience Prompt
 
-Describe a production change involving Policy, Secrets, and Certificates. What constraint selected the design? Name the first signal, the misleading signal, the rollback decision, and one durable improvement. Quantify blast radius or recovery time without inventing business results.
+Describe a change to certificate manager: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
 
 ## Recall Check
 
-1. What is the consumer-facing contract for Policy, Secrets, and Certificates?
-2. How do accepted, observed, and serving state differ?
-3. Which component owns retries and idempotency?
-4. What capacity signal should page before user impact?
-5. When would a simpler design be safer?
+1. What does **policy as code** send to **admission controller**?
+2. Which component stores or reports authoritative state?
+3. How does **workload identity** affect **audit evidence**?
+4. Which capacity limit fails first at production scale?
+5. When is a simpler managed alternative preferable?
 
 ## Related Notes
 
-* [Next focused note](05-developer-experience-and-metrics.md)
-* [Deeper handbook chapter](01-platform-as-a-product.md)
+* [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
-
-## Further Reading
-
-* [Kubernetes documentation](https://kubernetes.io/docs/)
-* [AWS Well-Architected Framework](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)
-* [OpenTelemetry documentation](https://opentelemetry.io/docs/)

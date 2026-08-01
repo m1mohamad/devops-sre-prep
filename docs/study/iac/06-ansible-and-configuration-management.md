@@ -1,114 +1,76 @@
 ---
 title: Ansible and Configuration Management
-tags:
-  - iac
-  - platform-engineering
-aliases:
-  - Ansible and Configuration Management study note
+tags: [iac, platform-engineering]
+aliases: [Ansible and Configuration Management study note]
 ---
 
 # Ansible and Configuration Management
 
 ## 30-Second Answer
 
-For **Ansible and Configuration Management**, start from the contract visible to its consumer, then trace ownership through control-plane state, runtime execution, and telemetry. The design is only complete when degraded behavior and recovery are explicit. In production I define an SLO, an owner, a safe rollout path, and evidence that distinguishes desired-state failure from runtime or dependency failure.
+Ansible and Configuration Management is the path from **inventory** to **handler and fact results**. The essential handoffs are Ansible playbook, SSH or WinRM, idempotent module, managed host. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
 
 ## Mental Model
 
-Treat the topic as a feedback system: intent enters a durable control surface, reconcilers or workers act, and signals report whether the user-visible outcome matches intent.
-
 ```mermaid
 flowchart LR
-  Intent[Reviewed intent] --> Control[Ansible and Configuration Management control]
-  Control --> Runtime[Runtime outcome]
-  Runtime --> Signals[Metrics logs traces events]
-  Signals --> Decision[Operator or controller decision]
-  Decision --> Intent
+  N0[inventory] --> N1[Ansible playbook] --> N2[SSH or WinRM] --> N3[idempotent module] --> N4[managed host] --> N5[handler and fact results]
 ```
 
-The arrows matter more than the boxes. A successful API response proves acceptance, not completion. Status and telemetry must expose asynchronous progress.
+Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **managed host** has different evidence and ownership from a failure at **Ansible playbook**.
 
 ## Why It Exists
 
-Cloud resources otherwise accumulate undocumented settings, unsafe ordering, configuration drift, and unclear ownership. Ansible and Configuration Management provides a repeatable boundary for that problem. Standardization enables policy and automation, but the abstraction must retain escape hatches and debuggable underlying resources.
-
-A senior design begins with workload characteristics: availability target, latency, recovery point and time objectives, data sensitivity, expected scale, tenant isolation, and the team that carries the pager. Those constraints determine whether the mechanism is justified.
+Without ansible and configuration management, teams must manually coordinate inventory, idempotent module, and handler and fact results. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
 
 ## How It Works
 
-A provider translates a dependency graph into API operations. State maps resource addresses to remote identities; planning refreshes observations, computes a diff, and orders changes by graph edges.
+**inventory** owns stage 1; **Ansible playbook** owns stage 2; **SSH or WinRM** owns stage 3; **idempotent module** owns stage 4; **managed host** owns stage 5; **handler and fact results** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
 
-For this topic, separate four states:
+## Mechanisms
 
-1. **Source intent** — reviewed configuration, code, or policy.
-2. **Accepted state** — the control plane validated and persisted the request.
-3. **Observed state** — controllers or workers report what currently exists.
-4. **Serving state** — users receive correct results within the objective.
-
-Never collapse those states into “deployed.” Correlate stable identifiers such as commit SHA, artifact digest, resource UID, deployment revision, account, region, and trace ID. Make mutations idempotent, bound retries with backoff and jitter, and send irrecoverable work to an explicit failure path rather than retrying forever.
+* **inventory:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **Ansible playbook:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **SSH or WinRM:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **idempotent module:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **managed host:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **handler and fact results:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
 
 ## Production Architecture
 
-A realistic deployment uses separate production and non-production boundaries, least-privilege workload identity, immutable artifacts, policy at admission or deployment time, and centralized telemetry. Changes move through automated checks and progressive exposure; rollback changes declarative intent to a previously verified version.
-
-```mermaid
-flowchart TB
-  Git[Reviewed source] --> CI[Build and verify]
-  CI --> Artifact[Immutable artifact and provenance]
-  Artifact --> Reconciler[Environment reconciler]
-  Policy[Policy and identity] --> Reconciler
-  Reconciler --> AZ1[Failure domain A]
-  Reconciler --> AZ2[Failure domain B]
-  AZ1 --> Telemetry[Telemetry pipeline]
-  AZ2 --> Telemetry
-  Telemetry --> Oncall[Service owner]
-```
-
-Ownership is split deliberately: the platform team owns the contract and shared control plane; service teams own workload configuration, SLOs, and response; security owns control objectives while implementation remains automated and testable.
+Deploy inventory with least privilege and an auditable change path. Isolate idempotent module by environment and failure domain, make handler and fact results observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
 
 ## Failure Modes
 
-| Failure | Symptom | Diagnosis | Mitigation |
-| ------- | ------- | --------- | ---------- |
-| Invalid intent | Request rejected or reconciliation stalled | Inspect validation output, conditions, and recent diff | Correct source; do not patch production around review |
-| Control-plane lag | Accepted change never converges | Check queue depth, leader, API errors, and rate limits | Restore controller capacity; replay idempotently |
-| Capacity exhaustion | Pending work and rising latency | Compare demand with quotas, requests, and saturation | Shed load, scale a valid pool, then tune forecasts |
-| Dependency failure | Healthy process but failed requests | Follow traces and dependency error budgets | Fail closed/open deliberately; use bounded fallback |
-| Silent drift | Runtime differs from reviewed intent | Diff source, accepted, and live state with audit events | Revert unauthorized mutation and remove its path |
+| Failure | Evidence | Response |
+|---|---|---|
+| concurrent or out-of-band mutation creates state drift | Compare stage latency and revision at Ansible playbook | Stop promotion and restore the last verified input |
+| a broad state file enlarges blast radius | Inspect saturation, quotas, events, and pending work at idempotent module | Add valid capacity or shed load; do not retry without a bound |
+| partial provider failure requires a new plan | Compare the user result with handler and fact results and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
 
 ## Trade-offs
 
-Automation increases consistency but can amplify a bad decision quickly. Strong isolation reduces blast radius but adds cost and operational surfaces. Rich abstractions speed common work but obscure internals during unusual failures. Adopt Ansible and Configuration Management when repeated demand and risk justify a supported product; avoid adding another control plane for a one-off workload that a simpler managed service can satisfy.
-
-Prefer boring, observable defaults. Document unsupported cases, version contracts, test upgrades against representative workloads, and measure whether users actually succeed without tickets. “More features” is not a platform outcome.
+More automation across inventory and handler and fact results improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
 
 ## Lead-Level Follow-ups
 
-* Where is durable state, and what are its backup and restore semantics?
-* Which action crosses a trust boundary, and how is workload identity issued?
-* How does the system behave when its controller or telemetry backend is unavailable?
-* Which metric proves the abstraction improves delivery rather than moving toil?
+* Which team owns **idempotent module**, and what user-facing SLO proves it works?
+* What remains available when **Ansible playbook** is down?
+* Where is state durable, and how are restore and upgrade tested?
 
 ## My Experience Prompt
 
-Describe a production change involving Ansible and Configuration Management. What constraint selected the design? Name the first signal, the misleading signal, the rollback decision, and one durable improvement. Quantify blast radius or recovery time without inventing business results.
+Describe a change to idempotent module: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
 
 ## Recall Check
 
-1. What is the consumer-facing contract for Ansible and Configuration Management?
-2. How do accepted, observed, and serving state differ?
-3. Which component owns retries and idempotency?
-4. What capacity signal should page before user impact?
-5. When would a simpler design be safer?
+1. What does **inventory** send to **Ansible playbook**?
+2. Which component stores or reports authoritative state?
+3. How does **managed host** affect **handler and fact results**?
+4. Which capacity limit fails first at production scale?
+5. When is a simpler managed alternative preferable?
 
 ## Related Notes
 
-* [Next focused note](01-iac-mental-model.md)
-* [Deeper handbook chapter](../../architecture/terraform-aws-platform.md)
+* [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
-
-## Further Reading
-
-* [Kubernetes documentation](https://kubernetes.io/docs/)
-* [AWS Well-Architected Framework](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)
-* [OpenTelemetry documentation](https://opentelemetry.io/docs/)
