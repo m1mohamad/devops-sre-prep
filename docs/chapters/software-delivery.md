@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Source control, build systems, and automated testing
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Containers](containers.md) · [GitOps](gitops.md) · [Security](security.md)
+
+### Next topics
+
+Artifact provenance · Progressive delivery · Deployment SLOs
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    Continuous delivery is a capability; continuous deployment is the decision to release every passing change.
+
+### Industry example
+
+A regulated team signs images, records provenance, and promotes the same digest across environments.
+
+### Interview questions
+
+- Where should policy run in a delivery pipeline?
+- How would you make a release both repeatable and reversible?
+
+### Further reading
+
+- [slsa.dev](https://slsa.dev/)
+- [docs.github.com](https://docs.github.com/en/actions)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)

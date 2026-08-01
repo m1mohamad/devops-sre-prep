@@ -97,3 +97,41 @@ Focus on boundaries, failure domains, organizational ownership, migration paths,
 - Kubernetes documentation
 - CNCF landscape
 - AWS Well-Architected Framework
+
+
+---
+
+## Knowledge graph
+
+### Prerequisites
+
+- Identity, networking, and software delivery fundamentals
+- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
+
+### Related chapters
+
+[Software Delivery](software-delivery.md) · [Containers](containers.md) · [Kubernetes](kubernetes.md) · [AWS Foundations](aws-foundations.md)
+
+### Next topics
+
+Workload identity · Admission policy · SBOMs and provenance
+
+### Common confusions
+
+!!! warning "Do not conflate these concepts"
+    Authentication proves identity; authorization decides what that identity may do.
+
+### Industry example
+
+A workload exchanges its platform identity for short-lived cloud credentials instead of storing static keys.
+
+### Interview questions
+
+- How do you secure a software supply chain?
+- Where should policy enforcement occur?
+
+### Further reading
+
+- [slsa.dev](https://slsa.dev/)
+- [spiffe.io](https://spiffe.io/docs/latest/spiffe-about/overview/)
+- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)

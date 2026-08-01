@@ -103,6 +103,7 @@ nav:
   - Home: index.md
   - Handbook:
       - Overview: chapters/index.md
+      - Knowledge Graph: knowledge-graph/index.md
       - Software Delivery: chapters/software-delivery.md
       - Containers: chapters/containers.md
       - Kubernetes: chapters/kubernetes.md
