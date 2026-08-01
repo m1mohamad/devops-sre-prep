@@ -6,67 +6,44 @@ aliases: [Observability Pipeline architecture]
 
 # Observability Pipeline
 
-## Problem
+## Design Goal
 
-Collect, transform, store, and query telemetry without making applications depend on the backend. The boundary must remain diagnosable when a dependency is slow, unavailable, unauthorized, or returning stale state.
+This view names the real handoffs, state boundaries, and failure domains used by observability pipeline; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
 
-## Diagram
+## Architecture Diagram
 
 ```mermaid
 flowchart LR
-  User[Consumer] --> Edge[Authenticated contract]
-  Edge --> Control[Observability Pipeline control]
-  Control --> State[(Durable state)]
-  Control --> Runtime[Runtime workers]
-  Runtime --> Dependency[External dependency]
-  Runtime --> Signals[Telemetry and status]
-  Signals --> Owner[Operational owner]
+  Metrics[Metrics] --> MP[OpenTelemetry Collector / Prometheus] --> MStore[(Long-term metrics storage)] --> Grafana[Grafana]
+  Logs[Logs] --> Agents[Agents / Collector] --> Loki[(Loki)] --> Grafana
+  Traces[Traces] --> OT[OpenTelemetry Collector] --> Tempo[(Tempo)] --> Grafana
+  MP --> Rules[Alert rules] --> AM[Alertmanager] --> Oncall[On-call]
+  Deploy[Deployment revision metadata] -. enriches all signals .-> MP
+  Deploy -.-> Agents
+  Deploy -.-> OT
 ```
 
 ## Request or Control Flow
 
-1. A consumer submits versioned intent with an identity and idempotency key or resource version.
-2. The edge authenticates, authorizes, validates, and persists before acknowledging asynchronous work.
-3. Workers read from a bounded queue, compare desired and observed state, and make retry-safe changes.
-4. Runtime readiness proves the serving path, while status reports the processed generation.
-5. Telemetry and audit events retain stable revision identifiers for diagnosis and rollback.
+Metrics, logs, and traces have separate ingestion and storage paths so one high-volume signal cannot silently consume every other signal's budget. Prometheus or an OpenTelemetry Collector scrapes/receives metrics and remote-writes long-term storage. Agents ship logs to Loki; collectors export traces to Tempo. Grafana queries each backend, while actionable rules route through Alertmanager to on-call.
 
-## Component Responsibilities
+## Production Mechanics
 
-| Component | Owns | Must expose |
-|---|---|---|
-| Contract edge | Identity, policy, validation, compatibility | latency, rejection reason, audit principal |
-| Durable state | Source of intended state and concurrency | freshness, backup, restore evidence |
-| Controller/worker | Ordering, retry, idempotency, status | queue depth, reconcile errors, last success |
-| Runtime | User work and dependency calls | RED metrics, saturation, revision |
-| Service owner | SLO, rollout, incident response | runbook, dashboard, escalation |
+Propagate trace ID into structured logs and exemplars. Attach deployment revision, pod, node, cluster, and region as controlled attributes so an operator can move from an SLO burn to a trace, its logs, and the exact rollout. Limit label cardinality; trace IDs belong in logs/exemplars, not as metric labels.
 
-## Failure Boundaries
+## Failure Modes and Operations
 
-Separate tenants, production accounts, regions or zones, and controller credentials. A control-plane outage should stop change without stopping an already healthy serving path. Bound retry amplification and preserve a manual, audited mitigation path. Test loss of state, queue backlog, expired identity, exhausted capacity, and partial dependency success.
+* **Boundary:** Collector backpressure drops data unless queues and memory limits are explicit.
+* **Boundary:** High-cardinality labels overload metrics storage.
+* **Boundary:** An alert on symptoms without ownership or runbook creates noise.
 
-## Security
 
-Use workload identity and short-lived credentials; scope reads and mutations independently. Encrypt transport and durable state, log administrative and automated principals, verify artifact provenance where risk warrants it, and prevent tenants from selecting privileged service accounts or untrusted sources.
+For Observability Pipeline, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
 
-## Scaling
+## Security and Trade-offs
 
-Scale workers from queue latency rather than CPU alone, shard only with a clear ownership key, and protect dependencies with concurrency limits. Runtime autoscaling needs a leading workload signal plus maximum safe demand. Capacity plans include cloud quotas, IPs, storage attachment, and failover headroom—not just compute.
+The Observability Pipeline trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
 
-## Operational Ownership
+## Interview Walkthrough
 
-The platform team owns the contract, shared controllers, upgrades, and migration guidance. Workload teams own configuration, application SLOs, and safe use. Security defines testable controls. One named team owns each pager; shared ownership without an escalation boundary is unowned.
-
-## Trade-offs
-
-A centralized control plane simplifies policy and inventory but widens blast radius. Per-tenant instances improve isolation but multiply upgrades. Asynchronous reconciliation survives transient faults but is eventually consistent and harder to reason about than a synchronous call. Select the simplest boundary that meets recovery and compliance objectives.
-
-## Interview Explanation
-
-Begin with the user outcome and state boundaries. Walk one request forward, one failure backward, then explain identity, scaling, rollback, and ownership. State which facts are assumptions. The staff-level signal is not the number of tools; it is a design whose failure behavior and migration path are credible.
-
-## Further Reading
-
-* [AWS Builders' Library](https://aws.amazon.com/builders-library/)
-* [Kubernetes architecture](https://kubernetes.io/docs/concepts/architecture/)
-* [Google SRE books](https://sre.google/books/)
+Trace the Observability Pipeline diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.

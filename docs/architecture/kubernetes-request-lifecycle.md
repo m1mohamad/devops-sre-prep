@@ -6,67 +6,60 @@ aliases: [Kubernetes Request Lifecycle architecture]
 
 # Kubernetes Request Lifecycle
 
-## Problem
+## Design Goal
 
-Trace a Deployment from API admission to a ready Service endpoint. The boundary must remain diagnosable when a dependency is slow, unavailable, unauthorized, or returning stale state.
+This view names the real handoffs, state boundaries, and failure domains used by kubernetes request lifecycle; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
 
-## Diagram
+## Architecture Diagram
 
 ```mermaid
-flowchart LR
-  User[Consumer] --> Edge[Authenticated contract]
-  Edge --> Control[Kubernetes Request Lifecycle control]
-  Control --> State[(Durable state)]
-  Control --> Runtime[Runtime workers]
-  Runtime --> Dependency[External dependency]
-  Runtime --> Signals[Telemetry and status]
-  Signals --> Owner[Operational owner]
+sequenceDiagram
+  participant U as Deployment submission
+  participant A as API server
+  participant E as etcd
+  participant D as Deployment controller
+  participant R as ReplicaSet controller
+  participant S as scheduler
+  participant K as kubelet
+  participant C as CRI / CNI
+  participant X as EndpointSlice / Service
+  U->>A: POST Deployment
+  A->>E: persist desired state
+  E-->>D: watch event
+  D->>A: create ReplicaSet
+  A-->>R: ReplicaSet watch
+  R->>A: create Pods
+  A-->>S: watch unscheduled Pods
+  S->>A: bind Pod to node
+  A-->>K: watch assigned Pod
+  K->>C: CRI create sandbox and container
+  C-->>K: CNI attaches Pod network
+  K->>A: readiness becomes true
+  A-->>X: EndpointSlice adds Pod IP
+  X-->>U: Service traffic reaches ready Pod
 ```
 
 ## Request or Control Flow
 
-1. A consumer submits versioned intent with an identity and idempotency key or resource version.
-2. The edge authenticates, authorizes, validates, and persists before acknowledging asynchronous work.
-3. Workers read from a bounded queue, compare desired and observed state, and make retry-safe changes.
-4. Runtime readiness proves the serving path, while status reports the processed generation.
-5. Telemetry and audit events retain stable revision identifiers for diagnosis and rollback.
+Submission returns after the API server validates and persists the Deployment, not after a Pod serves. The Deployment controller creates a ReplicaSet; its controller creates Pods. The scheduler binds each feasible Pod, the node kubelet asks CRI to start it and CNI to network its sandbox, then reports probe status. EndpointSlice controllers publish ready addresses consumed by the Service dataplane.
 
-## Component Responsibilities
+## Production Mechanics
 
-| Component | Owns | Must expose |
-|---|---|---|
-| Contract edge | Identity, policy, validation, compatibility | latency, rejection reason, audit principal |
-| Durable state | Source of intended state and concurrency | freshness, backup, restore evidence |
-| Controller/worker | Ordering, retry, idempotency, status | queue depth, reconcile errors, last success |
-| Runtime | User work and dependency calls | RED metrics, saturation, revision |
-| Service owner | SLO, rollout, incident response | runbook, dashboard, escalation |
+Use generation, observedGeneration, revision, Pod UID, and Kubernetes events to identify the stalled handoff. Each stage is asynchronous and watch-driven, so diagnosis follows the first missing object or status transition rather than assuming a single transaction.
 
-## Failure Boundaries
+## Failure Modes and Operations
 
-Separate tenants, production accounts, regions or zones, and controller credentials. A control-plane outage should stop change without stopping an already healthy serving path. Bound retry amplification and preserve a manual, audited mitigation path. Test loss of state, queue backlog, expired identity, exhausted capacity, and partial dependency success.
+* **Boundary:** Quota or admission rejects creation before persistence.
+* **Boundary:** No feasible node leaves Pods Pending with scheduler events.
+* **Boundary:** A failing readiness probe keeps a Running Pod out of ready EndpointSlices.
 
-## Security
 
-Use workload identity and short-lived credentials; scope reads and mutations independently. Encrypt transport and durable state, log administrative and automated principals, verify artifact provenance where risk warrants it, and prevent tenants from selecting privileged service accounts or untrusted sources.
+For Kubernetes Request Lifecycle, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
 
-## Scaling
+## Security and Trade-offs
 
-Scale workers from queue latency rather than CPU alone, shard only with a clear ownership key, and protect dependencies with concurrency limits. Runtime autoscaling needs a leading workload signal plus maximum safe demand. Capacity plans include cloud quotas, IPs, storage attachment, and failover headroom—not just compute.
+The Kubernetes Request Lifecycle trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
 
-## Operational Ownership
+## Interview Walkthrough
 
-The platform team owns the contract, shared controllers, upgrades, and migration guidance. Workload teams own configuration, application SLOs, and safe use. Security defines testable controls. One named team owns each pager; shared ownership without an escalation boundary is unowned.
-
-## Trade-offs
-
-A centralized control plane simplifies policy and inventory but widens blast radius. Per-tenant instances improve isolation but multiply upgrades. Asynchronous reconciliation survives transient faults but is eventually consistent and harder to reason about than a synchronous call. Select the simplest boundary that meets recovery and compliance objectives.
-
-## Interview Explanation
-
-Begin with the user outcome and state boundaries. Walk one request forward, one failure backward, then explain identity, scaling, rollback, and ownership. State which facts are assumptions. The staff-level signal is not the number of tools; it is a design whose failure behavior and migration path are credible.
-
-## Further Reading
-
-* [AWS Builders' Library](https://aws.amazon.com/builders-library/)
-* [Kubernetes architecture](https://kubernetes.io/docs/concepts/architecture/)
-* [Google SRE books](https://sre.google/books/)
+Trace the Kubernetes Request Lifecycle diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.

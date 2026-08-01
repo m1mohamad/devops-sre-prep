@@ -1,114 +1,76 @@
 ---
 title: Loki, Tempo, and OpenTelemetry
-tags:
-  - observability
-  - platform-engineering
-aliases:
-  - Loki, Tempo, and OpenTelemetry study note
+tags: [observability, platform-engineering]
+aliases: [Loki, Tempo, and OpenTelemetry study note]
 ---
 
 # Loki, Tempo, and OpenTelemetry
 
 ## 30-Second Answer
 
-For **Loki, Tempo, and OpenTelemetry**, start from the contract visible to its consumer, then trace ownership through control-plane state, runtime execution, and telemetry. The design is only complete when degraded behavior and recovery are explicit. In production I define an SLO, an owner, a safe rollout path, and evidence that distinguishes desired-state failure from runtime or dependency failure.
+Loki, Tempo, and OpenTelemetry is the path from **OpenTelemetry SDK** to **tail sampling**. The essential handoffs are Collector pipeline, Loki log store, Tempo trace store, Grafana correlation. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
 
 ## Mental Model
 
-Treat the topic as a feedback system: intent enters a durable control surface, reconcilers or workers act, and signals report whether the user-visible outcome matches intent.
-
 ```mermaid
 flowchart LR
-  Intent[Reviewed intent] --> Control[Loki, Tempo, and OpenTelemetry control]
-  Control --> Runtime[Runtime outcome]
-  Runtime --> Signals[Metrics logs traces events]
-  Signals --> Decision[Operator or controller decision]
-  Decision --> Intent
+  N0[OpenTelemetry SDK] --> N1[Collector pipeline] --> N2[Loki log store] --> N3[Tempo trace store] --> N4[Grafana correlation] --> N5[tail sampling]
 ```
 
-The arrows matter more than the boxes. A successful API response proves acceptance, not completion. Status and telemetry must expose asynchronous progress.
+Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **Grafana correlation** has different evidence and ownership from a failure at **Collector pipeline**.
 
 ## Why It Exists
 
-Operators cannot infer user impact or causal chains from host health and ad hoc log searches alone. Loki, Tempo, and OpenTelemetry provides a repeatable boundary for that problem. Standardization enables policy and automation, but the abstraction must retain escape hatches and debuggable underlying resources.
-
-A senior design begins with workload characteristics: availability target, latency, recovery point and time objectives, data sensitivity, expected scale, tenant isolation, and the team that carries the pager. Those constraints determine whether the mechanism is justified.
+Without loki, tempo, and opentelemetry, teams must manually coordinate opentelemetry sdk, tempo trace store, and tail sampling. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
 
 ## How It Works
 
-Telemetry is sampled evidence, not truth by itself. Metrics reveal aggregate behavior, logs retain discrete events, and trace context joins causally related work across process boundaries.
+**OpenTelemetry SDK** owns stage 1; **Collector pipeline** owns stage 2; **Loki log store** owns stage 3; **Tempo trace store** owns stage 4; **Grafana correlation** owns stage 5; **tail sampling** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
 
-For this topic, separate four states:
+## Mechanisms
 
-1. **Source intent** — reviewed configuration, code, or policy.
-2. **Accepted state** — the control plane validated and persisted the request.
-3. **Observed state** — controllers or workers report what currently exists.
-4. **Serving state** — users receive correct results within the objective.
-
-Never collapse those states into “deployed.” Correlate stable identifiers such as commit SHA, artifact digest, resource UID, deployment revision, account, region, and trace ID. Make mutations idempotent, bound retries with backoff and jitter, and send irrecoverable work to an explicit failure path rather than retrying forever.
+* **OpenTelemetry SDK:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **Collector pipeline:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **Loki log store:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **Tempo trace store:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **Grafana correlation:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+* **tail sampling:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
 
 ## Production Architecture
 
-A realistic deployment uses separate production and non-production boundaries, least-privilege workload identity, immutable artifacts, policy at admission or deployment time, and centralized telemetry. Changes move through automated checks and progressive exposure; rollback changes declarative intent to a previously verified version.
-
-```mermaid
-flowchart TB
-  Git[Reviewed source] --> CI[Build and verify]
-  CI --> Artifact[Immutable artifact and provenance]
-  Artifact --> Reconciler[Environment reconciler]
-  Policy[Policy and identity] --> Reconciler
-  Reconciler --> AZ1[Failure domain A]
-  Reconciler --> AZ2[Failure domain B]
-  AZ1 --> Telemetry[Telemetry pipeline]
-  AZ2 --> Telemetry
-  Telemetry --> Oncall[Service owner]
-```
-
-Ownership is split deliberately: the platform team owns the contract and shared control plane; service teams own workload configuration, SLOs, and response; security owns control objectives while implementation remains automated and testable.
+Deploy opentelemetry sdk with least privilege and an auditable change path. Isolate tempo trace store by environment and failure domain, make tail sampling observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
 
 ## Failure Modes
 
-| Failure | Symptom | Diagnosis | Mitigation |
-| ------- | ------- | --------- | ---------- |
-| Invalid intent | Request rejected or reconciliation stalled | Inspect validation output, conditions, and recent diff | Correct source; do not patch production around review |
-| Control-plane lag | Accepted change never converges | Check queue depth, leader, API errors, and rate limits | Restore controller capacity; replay idempotently |
-| Capacity exhaustion | Pending work and rising latency | Compare demand with quotas, requests, and saturation | Shed load, scale a valid pool, then tune forecasts |
-| Dependency failure | Healthy process but failed requests | Follow traces and dependency error budgets | Fail closed/open deliberately; use bounded fallback |
-| Silent drift | Runtime differs from reviewed intent | Diff source, accepted, and live state with audit events | Revert unauthorized mutation and remove its path |
+| Failure | Evidence | Response |
+|---|---|---|
+| cardinality or volume overloads ingestion | Compare stage latency and revision at Collector pipeline | Stop promotion and restore the last verified input |
+| sampling removes the only evidence for a rare failure | Inspect saturation, quotas, events, and pending work at Tempo trace store | Add valid capacity or shed load; do not retry without a bound |
+| an unactionable alert pages without user impact | Compare the user result with tail sampling and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
 
 ## Trade-offs
 
-Automation increases consistency but can amplify a bad decision quickly. Strong isolation reduces blast radius but adds cost and operational surfaces. Rich abstractions speed common work but obscure internals during unusual failures. Adopt Loki, Tempo, and OpenTelemetry when repeated demand and risk justify a supported product; avoid adding another control plane for a one-off workload that a simpler managed service can satisfy.
-
-Prefer boring, observable defaults. Document unsupported cases, version contracts, test upgrades against representative workloads, and measure whether users actually succeed without tickets. “More features” is not a platform outcome.
+More automation across opentelemetry sdk and tail sampling improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
 
 ## Lead-Level Follow-ups
 
-* Where is durable state, and what are its backup and restore semantics?
-* Which action crosses a trust boundary, and how is workload identity issued?
-* How does the system behave when its controller or telemetry backend is unavailable?
-* Which metric proves the abstraction improves delivery rather than moving toil?
+* Which team owns **Tempo trace store**, and what user-facing SLO proves it works?
+* What remains available when **Collector pipeline** is down?
+* Where is state durable, and how are restore and upgrade tested?
 
 ## My Experience Prompt
 
-Describe a production change involving Loki, Tempo, and OpenTelemetry. What constraint selected the design? Name the first signal, the misleading signal, the rollback decision, and one durable improvement. Quantify blast radius or recovery time without inventing business results.
+Describe a change to tempo trace store: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
 
 ## Recall Check
 
-1. What is the consumer-facing contract for Loki, Tempo, and OpenTelemetry?
-2. How do accepted, observed, and serving state differ?
-3. Which component owns retries and idempotency?
-4. What capacity signal should page before user impact?
-5. When would a simpler design be safer?
+1. What does **OpenTelemetry SDK** send to **Collector pipeline**?
+2. Which component stores or reports authoritative state?
+3. How does **Grafana correlation** affect **tail sampling**?
+4. Which capacity limit fails first at production scale?
+5. When is a simpler managed alternative preferable?
 
 ## Related Notes
 
-* [Next focused note](04-alerting-slos-and-error-budgets.md)
-* [Deeper handbook chapter](../../chapters/observability.md)
+* [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
-
-## Further Reading
-
-* [Kubernetes documentation](https://kubernetes.io/docs/)
-* [AWS Well-Architected Framework](https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html)
-* [OpenTelemetry documentation](https://opentelemetry.io/docs/)
