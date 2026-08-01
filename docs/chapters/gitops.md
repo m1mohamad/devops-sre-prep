@@ -1,137 +1,84 @@
+---
+title: GitOps
+tags: [platform-engineering, gitops]
+aliases: [GitOps handbook]
+---
+
 # GitOps
 
-## Executive Summary
+## Senior summary
 
-GitOps is a core platform engineering capability because it turns individual engineering work into repeatable, observable, and secure production outcomes. Staff engineers treat it as a system of feedback loops rather than a checklist.
+A controller pulls declared state, renders it, compares it with the API, and reports or repairs drift. Rollback requires changing intent or progressive-delivery automation. A production design states ownership, capacity, security, failure behavior, and a reversible change path instead of treating tooling as the outcome.
 
-!!! tip "Mental model"
-    Ask what state exists, who owns it, how it changes, and how operators know when reality diverges from intent.
+## Control and request flow
 
 ```mermaid
----
-title: GitOps Mental Model
----
 flowchart LR
-  Intent[GitOps Intent] --> Control[Control Plane]
-  Control --> Runtime[Runtime State]
-  Runtime --> Signals[Metrics Logs Traces]
-  Signals --> Decision[Engineering Decision]
-  Decision --> Intent
+  Intent[Reviewed intent] --> Control[GitOps control plane]
+  Control --> Runtime[Serving runtime]
+  Runtime --> Dependency[State or dependency]
+  Runtime --> Signals[User and system signals]
+  Signals --> Owner[Owner decision]
 ```
 
-## Why this exists
+Trace the real chain as **reviewed Git intent, source controller, renderer, reconciler, live state**. At every transition ask: what identity is used, where durable state lives, whether the operation is idempotent, which timeout bounds it, and how status distinguishes accepted from completed work.
 
-Teams need a shared abstraction that reduces cognitive load while preserving escape hatches for production incidents. Without gitops, organizations rely on tribal knowledge, manual runbooks, and heroics.
+## Internal mechanics
 
-## Historical evolution
+The control plane validates and persists intent before asynchronous workers act. Workers use bounded concurrency and retries with backoff, correlate work to a stable revision, and publish status. Runtime health is necessary but not sufficient: readiness must represent the serving path and SLOs must measure user outcomes.
 
-| Era | Practice | Limitation | Modern replacement |
-|---|---|---|---|
-| Manual | Tickets and shell access | Slow and inconsistent | Self-service workflows |
-| Scripted | Bash automation | Hidden state | Declarative APIs |
-| Platform | Productized capability | Requires governance | Golden paths |
+| State | Evidence | Typical false conclusion |
+|---|---|---|
+| Source | reviewed commit/configuration | “Merged means deployed” |
+| Accepted | API response and audit event | “Accepted means serving” |
+| Observed | controller status and conditions | “Reconciled means correct” |
+| Serving | SLI by revision and dependency | “No errors means no impact” |
 
-## Deep technical explanation
+## Production design
 
-The implementation combines APIs, controllers, policy, telemetry, and documentation. The goal is not to hide complexity; it is to put complexity behind stable contracts that can be tested, reviewed, and evolved.
+Use separate production authorization and failure boundaries, short-lived workload identity, immutable artifacts, progressive exposure, and centralized but non-blocking telemetry. Keep control-plane availability independent from an already healthy data path where possible. Backups require restore tests; Git does not back up external data.
 
 ```mermaid
----
-title: GitOps Internal Architecture
----
 flowchart TB
-  Users[Engineers] --> Portal[Developer Portal]
-  Portal --> API[Platform API]
-  API --> Policy[Policy Engine]
-  API --> Controller[Controller/Reconciler]
-  Controller --> Infra[Cloud and Cluster Resources]
-  Infra --> Telemetry[Telemetry Backend]
-  Telemetry --> Portal
+  Git --> Verify[Build test policy]
+  Verify --> Artifact[Immutable revision]
+  Artifact --> A[Failure domain A]
+  Artifact --> B[Failure domain B]
+  A --> Telemetry
+  B --> Telemetry
+  Telemetry --> Oncall
 ```
 
-## Internal architecture
+## Failure modes and troubleshooting
 
-??? note "Collapsible operator detail"
-    Controllers should be idempotent, observable, and safe to retry. Every mutation should have an owner, audit trail, and rollback plan.
+| Failure | Evidence | First safe action |
+|---|---|---|
+| Rejected intent | validation reason/audit event | correct source rather than bypass policy |
+| Reconciliation lag | queue depth, stale generation | restore controller/dependency capacity |
+| Runtime saturation | queue latency, resource pressure | shed load or add known-good capacity |
+| Dependency regression | trace span and comparative SLI | route/rollback the smallest boundary |
+| Drift | source-to-live diff and actor | preserve evidence, restore declared ownership |
 
-## Production example
+During an incident define impact, preserve evidence, compare healthy dimensions, and test a falsifiable hypothesis. Prefer a reviewed rollback or traffic shift over broad restarts. After mitigation, address the hidden coupling and validate prevention through a test or signal.
 
-A product team ships a customer-facing change through a golden path. The platform validates policy, builds artifacts, deploys with progressive delivery, and exposes dashboards before broad rollout.
+## Trade-offs
 
-## Failure scenarios
+Centralization improves consistent controls but increases shared blast radius. Tenant isolation improves autonomy and recovery boundaries but multiplies upgrades. Abstractions reduce routine cognitive load but must expose underlying status and supported escape paths. Do not adopt a new control plane unless repeated demand and risk justify an owned service.
 
-| Failure | Symptom | First check | Mitigation |
-|---|---|---|---|
-| Drift | Desired and live state differ | Reconciler status | Pause, diff, reconcile |
-| Capacity | Queues grow | Saturation metrics | Scale or shed load |
-| Policy | Deployment blocked | Admission logs | Fix ownership metadata |
+## Interview prompts
 
-## Troubleshooting
+* Walk one request forward and one failure backward.
+* Which state is durable, and how is recovery tested?
+* What is the leading saturation signal?
+* Who owns the contract, runtime SLO, and pager?
+* When is a simpler managed or application-level mechanism preferable?
 
-1. Confirm user impact and blast radius.
-2. Compare desired state, control-plane state, and runtime state.
-3. Read recent changes before restarting components.
-4. Prefer rollback over speculative fixes.
+## Further reading
 
-## Platform Engineer perspective
+* [AWS Builders' Library](https://aws.amazon.com/builders-library/)
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [Google SRE books](https://sre.google/books/)
 
-Design the paved road, defaults, documentation, and telemetry so product teams can move quickly without bypassing controls.
+## Study links
 
-## Staff Engineer perspective
-
-Focus on boundaries, failure domains, organizational ownership, migration paths, and long-term operability.
-
-## Common interview questions
-
-- How do you detect drift?
-- Which SLO proves this capability is healthy?
-- What should be centralized versus delegated?
-
-## Key takeaways
-
-!!! success "Remember"
-    Mature platforms convert repeated operational judgment into productized, observable workflows.
-
-## References
-
-- Kubernetes documentation
-- CNCF landscape
-- AWS Well-Architected Framework
-
-
----
-
-## Knowledge graph
-
-### Prerequisites
-
-- Software Delivery, Git, and Kubernetes reconciliation
-- [Handbook dependency map](../knowledge-graph/index.md#capability-dependency-graph)
-
-### Related chapters
-
-[Software Delivery](software-delivery.md) · [Kubernetes](kubernetes.md) · [Security](security.md) · [Reliability](reliability.md)
-
-### Next topics
-
-Argo CD and Flux · Progressive delivery · Infrastructure reconciliation
-
-### Common confusions
-
-!!! warning "Do not conflate these concepts"
-    GitOps is not merely YAML in Git: an automated agent must continuously reconcile and report drift.
-
-### Industry example
-
-A pull request changes desired state; a controller applies it and an SLO-driven rollout gates promotion.
-
-### Interview questions
-
-- How is an emergency change handled without permanent drift?
-- What belongs outside a Git repository?
-
-### Further reading
-
-- [opengitops.dev](https://opengitops.dev/)
-- [argo-cd.readthedocs.io](https://argo-cd.readthedocs.io/)
-- [Technology relationships and comparisons](../knowledge-graph/index.md#technology-relationships)
+Return to the [Study Vault](../study/index.md) or use the [Interview Dashboard](../study/00-interview-dashboard.md).
