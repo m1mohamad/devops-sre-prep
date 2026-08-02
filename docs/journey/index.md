@@ -6,8 +6,8 @@ aliases: [FinAI journey]
 
 # FinAI: Continuous Architecture Evolution
 
-!!! note
-    FinAI is a fictional, illustrative architecture. Provider behavior is identified where relevant; capacity and compliance assumptions require validation.
+> **Note:** FinAI is a fictional, illustrative architecture. Provider behavior is
+> identified where relevant; capacity and compliance assumptions require validation.
 
 ```mermaid
 flowchart LR

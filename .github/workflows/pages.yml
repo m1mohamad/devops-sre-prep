@@ -3,12 +3,11 @@ name: Deploy MkDocs site
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -31,14 +30,20 @@ jobs:
       - run: python scripts/check_journey_quality.py
       - run: python scripts/check_simulator_quality.py
       - run: python scripts/check_obsidian_compatibility.py
+      - run: python scripts/check_conflict_markers.py
       - run: python -m py_compile scripts/*.py
       - run: python scripts/check_required_sections.py
       - run: python scripts/check_internal_links.py
       - run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name == 'push'
         with:
           path: site
   deploy:
+    if: github.event_name == 'push'
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
