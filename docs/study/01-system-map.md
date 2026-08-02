@@ -18,3 +18,5 @@ flowchart LR
 ```
 
 Follow each edge by asking who authenticates, where state persists, how retries work, and what proves user impact. See the [architecture library](../architecture/index.md) and [dashboard](00-interview-dashboard.md).
+
+Use the [Core Path — End-to-End Platform](core-path/index.md) for the full implementation, request flows, security model, production incident, and AWS/GCP mapping.
