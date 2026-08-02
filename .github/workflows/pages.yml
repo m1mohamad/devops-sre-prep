@@ -30,6 +30,7 @@ jobs:
       - run: python scripts/check_journey_quality.py
       - run: python scripts/check_simulator_quality.py
       - run: python scripts/check_obsidian_compatibility.py
+      - run: python scripts/check_core_path.py
       - run: python scripts/check_conflict_markers.py
       - run: python -m py_compile scripts/*.py
       - run: python scripts/check_required_sections.py

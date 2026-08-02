@@ -106,6 +106,7 @@ nav:
   - Study Vault:
       - Overview: study/index.md
       - Dashboard: study/00-interview-dashboard.md
+      - Core Path — End-to-End Platform: study/core-path/index.md
       - System Map: study/01-system-map.md
       - Seven-Day Plan: study/02-seven-day-study-plan.md
       - Kubernetes:

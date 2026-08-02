@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = ROOT / "docs"
-MKDOCS_BLOCK = re.compile(r"^\s*(?:!!!|\?\?\?|===)(?:\s|$)")
+MKDOCS_BLOCK = re.compile(r"^\s*(?:!!!|\?\?\?\+?|===)(?:\s|$)")
 MARKDOWN_LINK = re.compile(r"!?\[[^]]*]\(\s*<?([^)>\s]+)", re.IGNORECASE)
 LOCAL_PATH = re.compile(
     r"^(?:file:(?://)?|/|~/|[A-Za-z]:[\\/])",

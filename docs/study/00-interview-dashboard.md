@@ -31,7 +31,9 @@ Use the [complete seven-day plan](02-seven-day-study-plan.md): delivery, Kuberne
 
 ## 2 Hours Available
 
-Read three linked notes, complete one [system-design question](interview/08-system-design-scenarios.md), and run one [production simulator](../simulator/index.md). End by writing the trade-off you would defend.
+Read the [Core Path — End-to-End Platform](core-path/index.md), redraw its master diagram, and rehearse its 60-second explanation.
+
+As an optional deeper exercise, read three linked notes, complete one [system-design question](interview/08-system-design-scenarios.md), and run one [production simulator](../simulator/index.md). End by writing the trade-off you would defend.
 
 ## Interview Questions by Topic
 
