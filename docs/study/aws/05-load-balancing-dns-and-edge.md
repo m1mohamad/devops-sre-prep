@@ -1,6 +1,6 @@
 ---
 title: Load Balancing, DNS, and Edge
-tags: [aws, platform-engineering]
+tags: [aws, production, interview-prep]
 aliases: [Load Balancing, DNS, and Edge study note]
 ---
 
@@ -8,69 +8,94 @@ aliases: [Load Balancing, DNS, and Edge study note]
 
 ## 30-Second Answer
 
-Load Balancing, DNS, and Edge is the path from **Route 53 record** to **ready Pod**. The essential handoffs are CloudFront or Global Accelerator, ALB or NLB, listener and target group, Ingress controller. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+Route 53 chooses names/traffic policy; ALB terminates HTTP routing and NLB exposes L4. Target health, ingress/gateway configuration, Service and EndpointSlice each must agree.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[Route 53 record] --> N1[CloudFront or Global Accelerator] --> N2[ALB or NLB] --> N3[listener and target group] --> N4[Ingress controller] --> N5[ready Pod]
+  Client --> Route53 --> ALB --> Gateway --> Service --> EndpointSlice --> Pod
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **Ingress controller** has different evidence and ownership from a failure at **CloudFront or Global Accelerator**.
+## Core Components
 
-## Why It Exists
+The diagram names the authoritative intent, execution mechanism and external state. Their credentials, lifecycle and evidence must remain independently visible.
 
-Without load balancing, dns, and edge, teams must manually coordinate route 53 record, listener and target group, and ready pod. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Choose TTL and health semantics around failover/failback. Understand ALB target type, source IP/SNAT, TLS/SNI and security groups. DNS health does not guarantee application data consistency.
 
-**Route 53 record** owns stage 1; **CloudFront or Global Accelerator** owns stage 2; **ALB or NLB** owns stage 3; **listener and target group** owns stage 4; **Ingress controller** owns stage 5; **ready Pod** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **Route 53 record:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **CloudFront or Global Accelerator:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **ALB or NLB:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **listener and target group:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Ingress controller:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **ready Pod:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy route 53 record with least privilege and an auditable change path. Isolate listener and target group by environment and failure domain, make ready pod observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| quota, IP, or zonal exhaustion defeats nominal capacity | Compare stage latency and revision at CloudFront or Global Accelerator | Stop promotion and restore the last verified input |
-| an IAM trust policy grants a wider principal than intended | Inspect saturation, quotas, events, and pending work at listener and target group | Add valid capacity or shed load; do not retry without a bound |
-| a shared account or network dependency widens blast radius | Compare the user result with ready Pod and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| stale DNS | authoritative/cached answer | fix record and wait TTL |
+| unhealthy targets | target reason/endpoints | repair readiness/path |
+| TLS mismatch | SNI/cert chain | renew/configure |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+curl --fail --max-time 5 https://service/health
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across route 53 record and ready pod improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **listener and target group**, and what user-facing SLO proves it works?
-* What remains available when **CloudFront or Global Accelerator** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to listener and target group: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Load Balancing, DNS, and Edge** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **Route 53 record** send to **CloudFront or Global Accelerator**?
-2. Which component stores or reports authoritative state?
-3. How does **Ingress controller** affect **ready Pod**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

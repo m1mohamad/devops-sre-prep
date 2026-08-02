@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [Code to Production architecture]
 ---
 
+
 # Code to Production
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by code to production; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Deliver one verified byte sequence from review to production without giving CI production access.
 
 ## Architecture Diagram
 
@@ -22,25 +23,46 @@ flowchart LR
 
 ## Request or Control Flow
 
-A developer proposes a pull request. CI tests source, scans dependencies and the resulting container, emits an SBOM, signs the digest, and pushes that exact digest to ECR. CI then proposes a GitOps change; Argo CD, not the build runner, reconciles it into Kubernetes. Readiness gates precede canary traffic, and telemetry decides whether exposure advances.
+PR checks test code and contracts; dependency and container scanners gate the build. The builder creates one OCI digest, SBOM and provenance, signs it, and pushes to immutable ECR. Promotion changes the GitOps digest; Argo CD reconciles it and Argo Rollouts can progressively expose it.
 
-## Production Mechanics
+## Component Responsibilities
 
-Promotion changes environment references to the same content digest; it never rebuilds source for production. This preserves provenance and makes the tested bytes equal the deployed bytes. CI must not directly mutate production: a short-lived build job should not hold production credentials, bypass review, or create state that Git cannot explain. Argo provides continuous drift correction and an auditable rollback by reverting Git.
+PR checks test code and contracts; dependency and container scanners gate the build. The builder creates one OCI digest, SBOM and provenance, signs it, and pushes to immutable ECR. Promotion changes the GitOps digest; Argo CD reconciles it and Argo Rollouts can progressively expose it.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** A failed signature or policy check prevents registry promotion.
-* **Boundary:** A false-positive readiness probe sends traffic to an unusable revision.
-* **Boundary:** A mutable tag makes rollback non-deterministic.
+Source and GitOps repositories hold intent; ECR holds immutable artifacts; Kubernetes holds live state. Application teams own code and rollout policy, the platform team owns CI, registry and Argo.
 
+## Security Boundaries
 
-For Code to Production, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+Use OIDC short-lived CI credentials scoped to ECR and GitOps PRs. Production credentials belong only to Argo. Verify signatures at admission and restrict ECR tag mutation.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The Code to Production trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Parallelize tests and cache dependencies without weakening verification. Scale runners separately from Argo controllers; rollout capacity is bounded by surge, quota and cluster headroom.
+
+## Failure Modes
+
+Scanner outage blocks release; a mutable tag destroys provenance; unhealthy canary or bad readiness leaks failure; Git/live drift blocks convergence.
+
+## Recovery and Rollback
+
+Revert the GitOps commit to a previously healthy digest. Pause/abort progressive delivery first. Never rebuild a rollback artifact; investigate CI and registry evidence after service recovery.
+
+## Operational Metrics
+
+Measure pipeline duration and failure rate; deployment lead time; rollout health; change failure rate; rollback time; signature-policy rejection. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the Code to Production diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Deliver one verified byte sequence from review to production without giving CI production access.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

@@ -1,6 +1,6 @@
 ---
 title: Kubernetes in One Page
-tags: [kubernetes, platform-engineering]
+tags: [kubernetes, production, interview-prep]
 aliases: [Kubernetes in One Page study note]
 ---
 
@@ -8,71 +8,101 @@ aliases: [Kubernetes in One Page study note]
 
 ## 30-Second Answer
 
-Kubernetes in One Page is the path from **kubectl** to **CNI and CSI**. The essential handoffs are kube-apiserver, etcd, controllers, scheduler, kubelet, container runtime. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+Kubernetes is a declarative API plus independent control loops: API objects record intent, controllers create derived objects, the scheduler selects nodes, and kubelets make Pod sandboxes run. A Running phase does not prove readiness or Service membership.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[kubectl] --> N1[kube-apiserver] --> N2[etcd] --> N3[controllers] --> N4[scheduler] --> N5[kubelet] --> N6[container runtime] --> N7[CNI and CSI]
+  Clients --> API
+  API <--> etcd
+  Controllers -->|watch/write| API
+  Scheduler -->|watch/bind| API
+  Kubelet -->|watch/status| API
+  Kubelet --> Runtime
+  Runtime --> CNI
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **container runtime** has different evidence and ownership from a failure at **kube-apiserver**.
+## Core Components
 
-## Why It Exists
+API server, etcd, controllers, scheduler, kubelet, CRI, CNI, CSI, Services and EndpointSlices each expose a distinct boundary.
 
-Without kubernetes in one page, teams must manually coordinate kubectl, scheduler, and cni and csi. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+A write is authenticated, authorized and admitted, then persisted. Controllers asynchronously observe resourceVersion changes and reconcile. Scheduler binds only unscheduled Pods. Kubelet watches Pods bound to its node, invokes runtime/network/storage plugins and reports status. Readiness controls endpoints; Service data planes route to ready EndpointSlices.
 
-**kubectl** owns stage 1; **kube-apiserver** owns stage 2; **etcd** owns stage 3; **controllers** owns stage 4; **scheduler** owns stage 5; **kubelet** owns stage 6; **container runtime** owns stage 7; **CNI and CSI** owns stage 8. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **kubectl:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **kube-apiserver:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **etcd:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **controllers:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **scheduler:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **kubelet:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **container runtime:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **CNI and CSI:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy kubectl with least privilege and an auditable change path. Isolate scheduler by environment and failure domain, make cni and csi observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| API or watch lag hides progress | Compare stage latency and revision at kube-apiserver | Stop promotion and restore the last verified input |
-| resource, IP, or storage capacity blocks convergence | Inspect saturation, quotas, events, and pending work at scheduler | Add valid capacity or shed load; do not retry without a bound |
-| a probe or policy reports a misleading serving state | Compare the user result with CNI and CSI and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| API rejection | audit/admission response | fix identity or object |
+| Unschedulable Pod | FailedScheduling event | correct the named constraint |
+| Running but unavailable | readiness and EndpointSlice | repair probe/selector |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+kubectl get events --sort-by=.lastTimestamp
+kubectl get all -A
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across kubectl and cni and csi improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **scheduler**, and what user-facing SLO proves it works?
-* What remains available when **kube-apiserver** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to scheduler: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Kubernetes in One Page** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **kubectl** send to **kube-apiserver**?
-2. Which component stores or reports authoritative state?
-3. How does **container runtime** affect **CNI and CSI**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

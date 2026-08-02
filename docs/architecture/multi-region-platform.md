@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [Multi-Region Platform architecture]
 ---
 
+
 # Multi-Region Platform
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by multi-region platform; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Meet explicit RPO/RTO by keeping regional serving independent and making data consistency and failback deliberate.
 
 ## Architecture Diagram
 
@@ -32,25 +33,46 @@ flowchart TB
 
 ## Request or Control Flow
 
-A global traffic manager evaluates regional health and routes to two independently operable EKS clusters. Each region owns its ingress, compute, secrets, telemetry buffer, and regional data endpoint. Identical artifact digests and separately promoted GitOps state avoid a deployment pipeline becoming a hidden runtime control plane.
+Global DNS/traffic manager uses health checks to select independent regional clusters and dependencies. Artifacts are promoted by digest and GitOps deploys per-region. Databases replicate according to a documented single-writer or conflict-resolution model.
 
-## Production Mechanics
+## Component Responsibilities
 
-Replication determines the RPO: asynchronous copies can lose acknowledged writes, while synchronous cross-region writes increase latency and coupling. Detection, DNS/traffic convergence, capacity warm-up, and data promotion determine RTO. Failover must prevent split brain and be rehearsed; a single shared control plane, database writer, or identity dependency defeats regional independence.
+Global DNS/traffic manager uses health checks to select independent regional clusters and dependencies. Artifacts are promoted by digest and GitOps deploys per-region. Databases replicate according to a documented single-writer or conflict-resolution model.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** A bad global promotion fails both regions simultaneously.
-* **Boundary:** Health checks pass while a critical regional dependency is broken.
-* **Boundary:** Failback overwrites newer data unless writer fencing is explicit.
+Each region owns serving and regional data. Global traffic and artifact promotion are shared risks; ownership for declaring failover and data authority must be explicit.
 
+## Security Boundaries
 
-For Multi-Region Platform, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+Use separate regional identities and keys; protect replication links; enforce data residency. Break-glass failover needs approval and audit without depending on the failed region.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The Multi-Region Platform trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Hold enough standby capacity to meet RTO; DNS TTL and client caching bound traffic shift. Cost ranges from pilot light to active-active and must match the capacity promise.
+
+## Failure Modes
+
+False health check causes oscillation; shared GitOps/identity outage hits all regions; replication lag exceeds RPO; split brain accepts conflicting writes; cold region lacks quota.
+
+## Recovery and Rollback
+
+Declare data authority, stop or fence the old writer, shift traffic, validate SLO/data, then restore replication. Failback is a planned migration after reconciliation, never an automatic DNS flip.
+
+## Operational Metrics
+
+Measure regional availability/latency; health-check state; replication lag/data loss window; regional capacity/quota; failover and failback duration; DR test success. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the Multi-Region Platform diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Meet explicit RPO/RTO by keeping regional serving independent and making data consistency and failback deliberate.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

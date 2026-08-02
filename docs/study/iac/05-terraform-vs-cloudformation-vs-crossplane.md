@@ -1,6 +1,6 @@
 ---
 title: Terraform vs CloudFormation vs Crossplane
-tags: [iac, platform-engineering]
+tags: [iac, production, interview-prep]
 aliases: [Terraform vs CloudFormation vs Crossplane study note]
 ---
 
@@ -8,68 +8,97 @@ aliases: [Terraform vs CloudFormation vs Crossplane study note]
 
 ## 30-Second Answer
 
-Terraform vs CloudFormation vs Crossplane is the path from **Terraform provider graph** to **state and reconciliation**. The essential handoffs are CloudFormation stack, Crossplane composite resource, cloud APIs. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+Choose based on ownership and reconciliation needs: Terraform is an external plan/apply engine across providers; CloudFormation is AWS-native stack reconciliation; Crossplane exposes continuously reconciled Kubernetes APIs. None universally replaces the others.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[Terraform provider graph] --> N1[CloudFormation stack] --> N2[Crossplane composite resource] --> N3[cloud APIs] --> N4[state and reconciliation]
+  Git --> Terraform --> MultiProvider
+  Git --> CloudFormation --> AWS
+  KubernetesAPI --> Crossplane --> ManagedResource
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **cloud APIs** has different evidence and ownership from a failure at **CloudFormation stack**.
+## Core Components
 
-## Why It Exists
+The diagram names the authoritative intent, execution mechanism and external state. Their credentials, lifecycle and evidence must remain independently visible.
 
-Without terraform vs cloudformation vs crossplane, teams must manually coordinate terraform provider graph, crossplane composite resource, and state and reconciliation. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Compare state/stack ownership, credentials, drift semantics, preview, composition API, deletion and operator skills. Avoid two tools managing the same field/resource. Crossplane suits self-service APIs where continuous reconciliation is intentional.
 
-**Terraform provider graph** owns stage 1; **CloudFormation stack** owns stage 2; **Crossplane composite resource** owns stage 3; **cloud APIs** owns stage 4; **state and reconciliation** owns stage 5. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **Terraform provider graph:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **CloudFormation stack:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Crossplane composite resource:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **cloud APIs:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **state and reconciliation:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy terraform provider graph with least privilege and an auditable change path. Isolate crossplane composite resource by environment and failure domain, make state and reconciliation observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| concurrent or out-of-band mutation creates state drift | Compare stage latency and revision at CloudFormation stack | Stop promotion and restore the last verified input |
-| a broad state file enlarges blast radius | Inspect saturation, quotas, events, and pending work at Crossplane composite resource | Add valid capacity or shed load; do not retry without a bound |
-| partial provider failure requires a new plan | Compare the user result with state and reconciliation and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| dual ownership | oscillating changes | choose one owner |
+| controller outage | stale conditions | restore reconciliation |
+| stack rollback failure | events | repair resource then continue |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+terraform plan
+git diff --exit-code
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across terraform provider graph and state and reconciliation improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **Crossplane composite resource**, and what user-facing SLO proves it works?
-* What remains available when **CloudFormation stack** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to crossplane composite resource: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Terraform vs CloudFormation vs Crossplane** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **Terraform provider graph** send to **CloudFormation stack**?
-2. Which component stores or reports authoritative state?
-3. How does **cloud APIs** affect **state and reconciliation**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

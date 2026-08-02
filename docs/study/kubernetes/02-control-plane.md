@@ -1,6 +1,6 @@
 ---
 title: Control Plane
-tags: [kubernetes, platform-engineering]
+tags: [kubernetes, production, interview-prep]
 aliases: [Control Plane study note]
 ---
 
@@ -8,75 +8,100 @@ aliases: [Control Plane study note]
 
 ## 30-Second Answer
 
-Control Plane is the path from **kube-apiserver** to **kubelet**. The essential handoffs are authentication and RBAC, admission, etcd quorum, kube-scheduler, kube-controller-manager, cloud-controller-manager. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+The API server is the hub, not the first box in a scheduler-controller-kubelet chain. etcd holds API state; scheduler, controller managers and kubelets independently list/watch and write through the API.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[kube-apiserver] --> N1[authentication and RBAC] --> N2[admission] --> N3[etcd quorum] --> N4[kube-scheduler] --> N5[kube-controller-manager] --> N6[cloud-controller-manager] --> N7[kubelet]
+  Clients --> API[kube-apiserver]
+  API <--> Etcd[(etcd quorum)]
+  Scheduler[kube-scheduler] -->|watch/write| API
+  Controllers[controller manager] -->|watch/write| API
+  Cloud[cloud controller manager] -->|watch/write| API
+  Kubelet -->|watch/report| API
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **cloud-controller-manager** has different evidence and ownership from a failure at **authentication and RBAC**.
+## Core Components
 
-## Why It Exists
+Replicated API servers serve concurrently. etcd needs quorum and low fsync latency. Scheduler and controller replicas use Lease leader election; API Priority and Fairness protects critical request classes.
 
-Without control plane, teams must manually coordinate kube-apiserver, kube-scheduler, and kubelet. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+API authentication establishes identity; authorization evaluates verb/resource/scope; mutating then validating admission runs before storage. Watches resume from resourceVersion and may relist. During control-plane loss, already running containers and installed Service routes usually continue, but new writes, scheduling, endpoint changes and reconciliation stop. Managed EKS owns component availability/patching; customers still own access, admission and workloads.
 
-**kube-apiserver** owns stage 1; **authentication and RBAC** owns stage 2; **admission** owns stage 3; **etcd quorum** owns stage 4; **kube-scheduler** owns stage 5; **kube-controller-manager** owns stage 6; **cloud-controller-manager** owns stage 7; **kubelet** owns stage 8. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **kube-apiserver:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **authentication and RBAC:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **admission:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **etcd quorum:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **kube-scheduler:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **kube-controller-manager:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **cloud-controller-manager:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **kubelet:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Availability and Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Run kube-apiserver replicas behind a load balancer and an odd etcd quorum across failure domains. Scheduler, controller manager, and cloud controller manager use leases for leader election; their standby replicas take over reconciliation, whereas API servers serve concurrently. Alert on API latency and errors, etcd fsync latency, database size and quorum health. Bound admission webhook timeouts and choose fail-open only where its security consequence is accepted. A managed control plane transfers etcd backup, patching, and component availability to the provider; self-management provides configuration access but makes the team responsible for quorum recovery and upgrades.
-
-## Production Architecture
-
-Deploy kube-apiserver with least privilege and an auditable change path. Isolate kube-scheduler by environment and failure domain, make kubelet observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| API or watch lag hides progress | Compare stage latency and revision at authentication and RBAC | Stop promotion and restore the last verified input |
-| resource, IP, or storage capacity blocks convergence | Inspect saturation, quotas, events, and pending work at kube-scheduler | Add valid capacity or shed load; do not retry without a bound |
-| a probe or policy reports a misleading serving state | Compare the user result with kubelet and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| etcd quorum loss | etcd leader/commit metrics | restore quorum, not capacity |
+| slow webhook | API request trace/webhook latency | bound/bypass per policy |
+| watch storm | LIST/WATCH rate and APF queues | fix client/reduce relists |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+kubectl get events --sort-by=.lastTimestamp
+kubectl get all -A
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across kube-apiserver and kubelet improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **kube-scheduler**, and what user-facing SLO proves it works?
-* What remains available when **authentication and RBAC** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to kube-scheduler: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Control Plane** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **kube-apiserver** send to **authentication and RBAC**?
-2. Which component stores or reports authoritative state?
-3. How does **cloud-controller-manager** affect **kubelet**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

@@ -1,6 +1,6 @@
 ---
 title: Prometheus and Grafana
-tags: [observability, platform-engineering]
+tags: [observability, production, interview-prep]
 aliases: [Prometheus and Grafana study note]
 ---
 
@@ -8,69 +8,96 @@ aliases: [Prometheus and Grafana study note]
 
 ## 30-Second Answer
 
-Prometheus and Grafana is the path from **Prometheus scrape** to **Grafana**. The essential handoffs are service discovery, time-series database, recording and alert rules, Alertmanager. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+Prometheus discovers targets, scrapes samples into a time-series database and evaluates recording/alert rules; remote write forwards samples but is not the scrape path. Grafana queries and visualizes—it is not the metric authority.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[Prometheus scrape] --> N1[service discovery] --> N2[time-series database] --> N3[recording and alert rules] --> N4[Alertmanager] --> N5[Grafana]
+  Targets --> Prometheus --> TSDB --> Rules --> Alertmanager
+  Prometheus --> RemoteWrite --> LongTerm
+  Grafana --> TSDB
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **Alertmanager** has different evidence and ownership from a failure at **service discovery**.
+## Core Components
 
-## Why It Exists
+The diagram names the authoritative intent, execution mechanism and external state. Their credentials, lifecycle and evidence must remain independently visible.
 
-Without prometheus and grafana, teams must manually coordinate prometheus scrape, recording and alert rules, and grafana. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Budget cardinality, shard/federate deliberately, make recording rules for expensive stable queries and test alert delivery. Use histogram buckets/native histograms appropriate to SLOs.
 
-**Prometheus scrape** owns stage 1; **service discovery** owns stage 2; **time-series database** owns stage 3; **recording and alert rules** owns stage 4; **Alertmanager** owns stage 5; **Grafana** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **Prometheus scrape:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **service discovery:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **time-series database:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **recording and alert rules:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Alertmanager:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Grafana:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy prometheus scrape with least privilege and an auditable change path. Isolate recording and alert rules by environment and failure domain, make grafana observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| cardinality or volume overloads ingestion | Compare stage latency and revision at service discovery | Stop promotion and restore the last verified input |
-| sampling removes the only evidence for a rare failure | Inspect saturation, quotas, events, and pending work at recording and alert rules | Add valid capacity or shed load; do not retry without a bound |
-| an unactionable alert pages without user impact | Compare the user result with Grafana and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| scrape loss | up/target error | repair discovery |
+| remote queue full | pending/dropped samples | restore receiver |
+| bad labels | head series | relabel/instrument |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+curl --fail --max-time 5 https://service/health
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across prometheus scrape and grafana improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **recording and alert rules**, and what user-facing SLO proves it works?
-* What remains available when **service discovery** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to recording and alert rules: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Prometheus and Grafana** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **Prometheus scrape** send to **service discovery**?
-2. Which component stores or reports authoritative state?
-3. How does **Alertmanager** affect **Grafana**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

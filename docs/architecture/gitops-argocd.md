@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [GitOps with Argo CD architecture]
 ---
 
+
 # GitOps with Argo CD
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by gitops with argo cd; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Turn reviewed Git intent into continuously reconciled Kubernetes state while keeping artifacts and configuration separate.
 
 ## Architecture Diagram
 
@@ -25,25 +26,46 @@ flowchart LR
 
 ## Request or Control Flow
 
-CI produces an immutable image and updates the desired digest in a separate environment repository. Repo-server renders Helm, Kustomize, or plain YAML; application-controller compares rendered desired state with watched live state and applies the difference through the Kubernetes API. Resource health and sync status return to Argo CD.
+CI publishes an artifact, then updates the GitOps repository. repo-server clones and renders Helm/Kustomize; application-controller compares desired and live objects and reports sync separately from health. Automated sync may prune; waves and hooks order dependencies.
 
-## Production Mechanics
+## Component Responsibilities
 
-Drift detection is continuous, not a one-time deploy. With auto-sync, Argo reverses unauthorized live edits; with manual sync it reports them. Rollback is a Git revert to a known digest, retaining review history. Argo Rollouts can optionally manage analysis and progressive traffic while Argo CD remains owner of declarative resources.
+CI publishes an artifact, then updates the GitOps repository. repo-server clones and renders Helm/Kustomize; application-controller compares desired and live objects and reports sync separately from health. Automated sync may prune; waves and hooks order dependencies.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** Invalid rendering prevents comparison or sync.
-* **Boundary:** A broad Application scope amplifies a bad commit.
-* **Boundary:** Prune or sync-wave mistakes delete dependencies in the wrong order.
+Source Git owns code, registry owns digest, GitOps Git owns desired deployment, Kubernetes owns live state. ApplicationSet generates Applications; projects and destination rules partition tenants.
 
+## Security Boundaries
 
-For GitOps with Argo CD, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+Repo and cluster credentials are separate and least privilege. Protect branches, verify artifacts, isolate AppProjects, audit break-glass kubectl and suspend auto-sync before emergency mutation.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The GitOps with Argo CD trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Shard controllers/repo-server for applications and render cost; avoid huge monorepo invalidations. Reconciliation frequency trades detection latency for API/Git load.
+
+## Failure Modes
+
+Bad render prevents diff; invalid manifest fails sync; prune deletes unintended resource; health remains degraded after sync; HPA/manual ownership creates perpetual diff.
+
+## Recovery and Rollback
+
+Pause progression, revert Git to a known digest, and sync. Argo CD does not infer application rollback. Argo Rollouts may abort traffic by analysis. Record and reconcile break-glass changes afterward.
+
+## Operational Metrics
+
+Measure reconciliation and render duration; OutOfSync count; degraded health; sync failures; Git/cluster API errors; queue depth; rollout analysis success. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the GitOps with Argo CD diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Turn reviewed Git intent into continuously reconciled Kubernetes state while keeping artifacts and configuration separate.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

@@ -1,6 +1,6 @@
 ---
 title: Production Troubleshooting
-tags: [kubernetes, platform-engineering]
+tags: [kubernetes, production, interview-prep]
 aliases: [Production Troubleshooting study note]
 ---
 
@@ -8,69 +8,97 @@ aliases: [Production Troubleshooting study note]
 
 ## 30-Second Answer
 
-Production Troubleshooting is the path from **user symptom** to **recent change**. The essential handoffs are events and conditions, control-plane checks, node and kubelet, network and storage. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+Troubleshoot Kubernetes from symptom to the first divergent boundary: desired object, API/admission, controller progress, scheduling, kubelet/runtime, readiness/endpoints, then dependency. Preserve events and revisions before restarting.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[user symptom] --> N1[events and conditions] --> N2[control-plane checks] --> N3[node and kubelet] --> N4[network and storage] --> N5[recent change]
+  UserProbe --> Gateway --> Service --> EndpointSlice --> Pod
+  Pod --> Kubelet --> Runtime
+  Desired --> Controllers --> Pod
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **network and storage** has different evidence and ownership from a failure at **events and conditions**.
+## Core Components
 
-## Why It Exists
+Pod phase, conditions, events, owner chain, rollout observedGeneration and managedFields answer different questions. A control-plane symptom calls for API/etcd evidence; a serving symptom calls for endpoint and application evidence.
 
-Without production troubleshooting, teams must manually coordinate user symptom, node and kubelet, and recent change. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Start with one failed request/time and recent change. Compare healthy and failing replica/AZ/node. For Pending read FailedScheduling; for startup inspect init/container state and kubelet event; for Running-not-serving compare readiness and EndpointSlice; for DNS test lookup then ClusterIP/direct endpoint. Roll back only when change correlation and compatibility support it.
 
-**user symptom** owns stage 1; **events and conditions** owns stage 2; **control-plane checks** owns stage 3; **node and kubelet** owns stage 4; **network and storage** owns stage 5; **recent change** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **user symptom:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **events and conditions:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **control-plane checks:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **node and kubelet:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **network and storage:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **recent change:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy user symptom with least privilege and an auditable change path. Isolate node and kubelet by environment and failure domain, make recent change observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| API or watch lag hides progress | Compare stage latency and revision at events and conditions | Stop promotion and restore the last verified input |
-| resource, IP, or storage capacity blocks convergence | Inspect saturation, quotas, events, and pending work at node and kubelet | Add valid capacity or shed load; do not retry without a bound |
-| a probe or policy reports a misleading serving state | Compare the user result with recent change and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| Pending | scheduler events | fix named constraint |
+| CrashLoop | previous logs/exit reason | repair config/code |
+| 502 with ready Pods | edge/endpoint/app trace | validate probe/path |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+kubectl get events --sort-by=.lastTimestamp
+kubectl get all -A
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across user symptom and recent change improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **node and kubelet**, and what user-facing SLO proves it works?
-* What remains available when **events and conditions** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to node and kubelet: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Production Troubleshooting** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **user symptom** send to **events and conditions**?
-2. Which component stores or reports authoritative state?
-3. How does **network and storage** affect **recent change**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

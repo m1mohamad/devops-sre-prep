@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [Kubernetes Control Plane architecture]
 ---
 
+
 # Kubernetes Control Plane
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by kubernetes control plane; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Keep declarative API writes available and asynchronous reconcilers making progress without treating them as a pipeline.
 
 ## Architecture Diagram
 
@@ -34,25 +35,46 @@ flowchart TB
 
 ## Request or Control Flow
 
-Every client and controller uses the API server. A write passes authentication, authorization, and admission before durable storage in an etcd quorum. Scheduler, controller manager, and cloud controller manager watch API objects and write decisions back through the API; they do not edit etcd directly. Kubelets watch Pods bound to their node, invoke the runtime, and publish status.
+Clients authenticate, authorize and pass admission at replicated API servers before objects reach etcd. Scheduler, controller managers, cloud controller and kubelets independently list/watch and write through the API. API Priority and Fairness protects critical traffic.
 
-## Production Mechanics
+## Component Responsibilities
 
-Run multiple API-server replicas and an odd etcd quorum across failure domains. Scheduler and controller-manager replicas use leader election, while API servers are active-active. Protect API latency, admission webhook availability, and etcd disk latency because each can stop new changes even while existing Pods continue serving.
+Clients authenticate, authorize and pass admission at replicated API servers before objects reach etcd. Scheduler, controller managers, cloud controller and kubelets independently list/watch and write through the API. API Priority and Fairness protects critical traffic.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** Loss of etcd quorum rejects consistent writes.
-* **Boundary:** A fail-closed admission webhook outage blocks matching requests.
-* **Boundary:** Slow list/watch clients or API Priority and Fairness starvation increases reconciliation lag.
+etcd is authoritative desired/live API state. API servers are concurrent; scheduler and controller replicas use leader election. Managed providers own control-plane patching and etcd recovery; customers still own admission, RBAC, workloads and quotas.
 
+## Security Boundaries
 
-For Kubernetes Control Plane, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+TLS authenticates components; RBAC authorizes verbs; admission validates policy. Bound webhook timeouts and decide fail-open versus fail-closed explicitly. Encrypt secrets at rest and audit privileged calls.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The Kubernetes Control Plane trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Scale API servers for request rate and watch fan-out; reduce expensive LISTs and cardinality. etcd quorum needs low-latency disks, not arbitrary horizontal scaling.
+
+## Failure Modes
+
+etcd quorum loss blocks durable writes; slow webhook exhausts API concurrency; watch storms raise latency; expired leader lease pauses scheduling or reconciliation.
+
+## Recovery and Rollback
+
+During outage, existing Pods and kube-proxy/eBPF rules continue; new scheduling and API changes stop. Restore quorum from tested backup only under the documented procedure; remove or bypass a failed webhook under break-glass policy.
+
+## Operational Metrics
+
+Measure API p95/p99 and 429/5xx; APF queue wait; etcd fsync and commit latency, leader changes and database size; webhook latency; scheduler pending queue; watch terminations. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the Kubernetes Control Plane diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Keep declarative API writes available and asynchronous reconcilers making progress without treating them as a pipeline.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

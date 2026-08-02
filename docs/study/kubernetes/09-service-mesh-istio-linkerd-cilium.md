@@ -1,6 +1,6 @@
 ---
 title: Service Mesh: Istio, Linkerd, and Cilium
-tags: [kubernetes, platform-engineering]
+tags: [kubernetes, production, interview-prep]
 aliases: [Service Mesh: Istio, Linkerd, and Cilium study note]
 ---
 
@@ -8,69 +8,97 @@ aliases: [Service Mesh: Istio, Linkerd, and Cilium study note]
 
 ## 30-Second Answer
 
-Service Mesh: Istio, Linkerd, and Cilium is the path from **workload identity** to **mesh telemetry**. The essential handoffs are sidecar or ambient proxy, mTLS, Istio, Linkerd, or Cilium control plane, traffic policy. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+A mesh provides workload identity, mTLS, telemetry and traffic policy through a control plane and dataplane. Sidecars isolate per Pod; Istio ambient uses node ztunnel plus optional waypoint. Cilium is also a CNI/eBPF dataplane, not simply another sidecar mesh.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[workload identity] --> N1[sidecar or ambient proxy] --> N2[mTLS] --> N3[Istio, Linkerd, or Cilium control plane] --> N4[traffic policy] --> N5[mesh telemetry]
+  Identity --> MeshControl --> Sidecars
+  PodA --> SidecarA --> SidecarB --> PodB
+  PodC --> ZTunnel --> Waypoint --> ZTunnel2 --> PodD
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **traffic policy** has different evidence and ownership from a failure at **sidecar or ambient proxy**.
+## Core Components
 
-## Why It Exists
+Trust roots and identity issuance underpin mTLS. Policies define authorization, timeout, retry, circuit breaking and traffic splitting. Gateways cross trust/network boundaries.
 
-Without service mesh: istio, linkerd, and cilium, teams must manually coordinate workload identity, istio, linkerd, or cilium control plane, and mesh telemetry. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Control-plane loss commonly leaves proxies with last configuration, but blocks updates and certificate renewal. Retry budgets must include application, proxy and client to prevent amplification. Do not adopt a mesh when simple TLS libraries, ingress, NetworkPolicy and tracing meet needs, team cannot operate proxy failure, or latency/resource overhead outweighs value.
 
-**workload identity** owns stage 1; **sidecar or ambient proxy** owns stage 2; **mTLS** owns stage 3; **Istio, Linkerd, or Cilium control plane** owns stage 4; **traffic policy** owns stage 5; **mesh telemetry** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **workload identity:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **sidecar or ambient proxy:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **mTLS:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Istio, Linkerd, or Cilium control plane:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **traffic policy:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **mesh telemetry:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy workload identity with least privilege and an auditable change path. Isolate istio, linkerd, or cilium control plane by environment and failure domain, make mesh telemetry observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| API or watch lag hides progress | Compare stage latency and revision at sidecar or ambient proxy | Stop promotion and restore the last verified input |
-| resource, IP, or storage capacity blocks convergence | Inspect saturation, quotas, events, and pending work at Istio, Linkerd, or Cilium control plane | Add valid capacity or shed load; do not retry without a bound |
-| a probe or policy reports a misleading serving state | Compare the user result with mesh telemetry and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| certificate expiry | proxy cert metrics | restore issuance |
+| retry storm | attempt count/downstream load | disable layered retries |
+| config rejection | control-plane status | revert policy |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+kubectl get events --sort-by=.lastTimestamp
+kubectl get all -A
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across workload identity and mesh telemetry improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **Istio, Linkerd, or Cilium control plane**, and what user-facing SLO proves it works?
-* What remains available when **sidecar or ambient proxy** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to istio, linkerd, or cilium control plane: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Service Mesh: Istio, Linkerd, and Cilium** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **workload identity** send to **sidecar or ambient proxy**?
-2. Which component stores or reports authoritative state?
-3. How does **traffic policy** affect **mesh telemetry**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)
