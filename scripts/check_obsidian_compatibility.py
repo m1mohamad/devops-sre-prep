@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject Markdown constructs in study notes that do not work well in Obsidian."""
+"""Reject Markdown constructs in documentation that do not work well in Obsidian."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-STUDY_ROOT = ROOT / "docs" / "study"
+DOCS_ROOT = ROOT / "docs"
 MKDOCS_BLOCK = re.compile(r"^\s*(?:!!!|\?\?\?|===)(?:\s|$)")
 MARKDOWN_LINK = re.compile(r"!?\[[^]]*]\(\s*<?([^)>\s]+)", re.IGNORECASE)
 LOCAL_PATH = re.compile(
@@ -41,7 +41,7 @@ def visible_lines(text: str) -> list[tuple[int, str]]:
 
 
 errors: list[str] = []
-for path in sorted(STUDY_ROOT.rglob("*.md")):
+for path in sorted(DOCS_ROOT.rglob("*.md")):
     relative = path.relative_to(ROOT)
     for line_number, line in visible_lines(path.read_text(encoding="utf-8")):
         if MKDOCS_BLOCK.match(line):
@@ -59,4 +59,4 @@ if errors:
     print("\n".join(errors))
     sys.exit(1)
 
-print("Obsidian compatibility valid for docs/study/.")
+print("Obsidian compatibility valid for docs/.")
