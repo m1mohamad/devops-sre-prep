@@ -55,38 +55,38 @@ flowchart TD
 
 ## Learning paths
 
-=== "Application engineer"
+### Application engineer
 
-    1. [Software Delivery](../chapters/software-delivery.md)
-    2. [Containers](../chapters/containers.md)
-    3. [Kubernetes](../chapters/kubernetes.md)
-    4. [GitOps](../chapters/gitops.md)
-    5. [Observability](../chapters/observability.md)
+1. [Software Delivery](../chapters/software-delivery.md)
+2. [Containers](../chapters/containers.md)
+3. [Kubernetes](../chapters/kubernetes.md)
+4. [GitOps](../chapters/gitops.md)
+5. [Observability](../chapters/observability.md)
 
-=== "Platform engineer"
+### Platform engineer
 
-    1. [AWS Foundations](../chapters/aws-foundations.md)
-    2. [Containers](../chapters/containers.md)
-    3. [Kubernetes](../chapters/kubernetes.md)
-    4. [Security](../chapters/security.md)
-    5. [GitOps](../chapters/gitops.md)
-    6. [Reliability](../chapters/reliability.md)
+1. [AWS Foundations](../chapters/aws-foundations.md)
+2. [Containers](../chapters/containers.md)
+3. [Kubernetes](../chapters/kubernetes.md)
+4. [Security](../chapters/security.md)
+5. [GitOps](../chapters/gitops.md)
+6. [Reliability](../chapters/reliability.md)
 
-=== "SRE"
+### SRE
 
-    1. [Observability](../chapters/observability.md)
-    2. [Reliability](../chapters/reliability.md)
-    3. [Kubernetes](../chapters/kubernetes.md)
-    4. [Software Delivery](../chapters/software-delivery.md)
-    5. [Security](../chapters/security.md)
+1. [Observability](../chapters/observability.md)
+2. [Reliability](../chapters/reliability.md)
+3. [Kubernetes](../chapters/kubernetes.md)
+4. [Software Delivery](../chapters/software-delivery.md)
+5. [Security](../chapters/security.md)
 
-=== "AI platform engineer"
+### AI platform engineer
 
-    1. [Containers](../chapters/containers.md)
-    2. [Kubernetes](../chapters/kubernetes.md)
-    3. [Observability](../chapters/observability.md)
-    4. [Reliability](../chapters/reliability.md)
-    5. [AI Platforms](../chapters/ai-platforms.md)
+1. [Containers](../chapters/containers.md)
+2. [Kubernetes](../chapters/kubernetes.md)
+3. [Observability](../chapters/observability.md)
+4. [Reliability](../chapters/reliability.md)
+5. [AI Platforms](../chapters/ai-platforms.md)
 
 ## Technology relationships
 
@@ -108,8 +108,9 @@ flowchart TD
 | Metrics vs logs vs traces | Aggregated trends | Discrete events | Causal request paths | Question being answered—not tool preference |
 | Argo CD vs Flux | Application-centric UI | Toolkit-style composition | Team workflow and integration needs |
 
-!!! tip "How to traverse the graph"
-    When a concept is unclear, move backward through **requires** links. When a
-    design is incomplete, move sideways through **security** and **observability**.
-    When selecting what to learn next, move forward through **produces** and
-    **controls** links.
+### How to traverse the graph
+
+> When a concept is unclear, move backward through **requires** links. When a
+> design is incomplete, move sideways through **security** and **observability**.
+> When selecting what to learn next, move forward through **produces** and
+> **controls** links.
