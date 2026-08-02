@@ -33,9 +33,8 @@ Events say 0/18 nodes available: required node affinity and untolerated dedicate
 
 10:06 describe one Pod; 10:09 compare schedulable nodes; 10:13 inspect affinity/taints; 10:17 check Karpenter NodeClaims; 10:21 confirm subnet IP and quota. Stop before the answer and rank these constraints.
 
-!!! question "Stop here"
-    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
-
+> **Stop here**
+> Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 ## Root Cause
 
 A topology rule pinned Pods to a tainted group whose subnet lacked addresses; Karpenter could not satisfy the request.
@@ -91,9 +90,8 @@ Argo diff shows /spec/replicas; audit logs identify an emergency kubectl scale; 
 
 14:02 inspect diff; 14:05 inspect managedFields; 14:08 check HPA events; 14:11 query audit principal; 14:16 suspend auto-sync while ownership is agreed. Form a hypothesis before reading root cause.
 
-!!! question "Stop here"
-    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
-
+> **Stop here**
+> Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 ## Root Cause
 
 Three actors claimed replicas: Git, HPA and a manual patch. Argo restored four after every HPA update.
@@ -147,9 +145,8 @@ crane manifest shows the index points both platforms to an amd64 manifest; kubel
 
 09:31 group failures by node architecture; 09:34 inspect image index; 09:38 compare child digests; 09:43 reproduce with an arm64 runner; 09:47 abort canary. State your hypothesis first.
 
-!!! question "Stop here"
-    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
-
+> **Stop here**
+> Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 ## Root Cause
 
 The build job mislabeled an amd64 image as arm64; signing proved origin/integrity, not compatibility.
@@ -203,9 +200,8 @@ Backend object history, CI termination timestamp, CloudTrail route calls and ter
 
 11:02 verify no writer; 11:06 read lock metadata; 11:10 preserve state versions; 11:15 compare CloudTrail and state; 11:22 run refresh-only plan. Decide whether force-unlock is safe.
 
-!!! question "Stop here"
-    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
-
+> **Stop here**
+> Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 ## Root Cause
 
 A cancelled apply left a stale lock after AWS accepted some calls; infrastructure and recorded mapping partially converged.
@@ -259,9 +255,8 @@ Challenge reports DNS provider AccessDenied; audit shows solver role policy lost
 
 08:00 inspect Certificate conditions; 08:04 follow CertificateRequest/Order/Challenge; 08:09 query authoritative TXT; 08:13 inspect solver identity denial; 08:18 calculate expiry margin. Form a cause before root cause.
 
-!!! question "Stop here"
-    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
-
+> **Stop here**
+> Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 ## Root Cause
 
 The DNS01 solver role no longer authorized the domain’s hosted zone, so ACME validation never observed its TXT record.
@@ -315,9 +310,8 @@ Route 53 has two weighted records with a long TTL and health evaluation disabled
 
 16:41 capture client resolver/answer; 16:45 compare authoritative response; 16:50 map ALB names to target health; 16:55 trace Service/EndpointSlice; 17:01 inspect TTL and weighted policy. Pause and rank DNS versus backend causes.
 
-!!! question "Stop here"
-    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
-
+> **Stop here**
+> Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 ## Root Cause
 
 Migration left an unhealthy old ALB eligible for 20% of answers, and caching extended exposure.
@@ -371,9 +365,8 @@ pg_stat_activity reaches max_connections; pool wait grows; pg_locks identifies a
 
 13:20 stop autoscaling; 13:23 inspect pool acquisition; 13:27 count sessions by application_name; 13:31 build lock tree; 13:36 identify transaction owner. Decide what can be safely cancelled.
 
-!!! question "Stop here"
-    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
-
+> **Stop here**
+> Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 ## Root Cause
 
 Horizontal scaling multiplied pool limits beyond the database budget while a long migration reduced useful concurrency.
@@ -427,9 +420,8 @@ Per-process GPU memory shows fragmentation and duplicate model caches; scheduler
 
 19:04 split latency by model; 19:08 inspect queue/batch; 19:12 inspect GPU memory and processes; 19:17 describe Pending Pods; 19:21 inspect Karpenter and quota. Form hypotheses before root cause.
 
-!!! question "Stop here"
-    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
-
+> **Stop here**
+> Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 ## Root Cause
 
 A model rollout duplicated caches, fragmented GPU memory and requested a GPU class whose quota had no headroom; utilization hid memory saturation.

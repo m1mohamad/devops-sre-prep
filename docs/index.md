@@ -1,8 +1,7 @@
 # Platform Engineer Handbook
 
-!!! quote "Mission"
-    Build a permanent mental model for shipping, operating, securing, and scaling modern platforms.
-
+> **Mission**
+> Build a permanent mental model for shipping, operating, securing, and scaling modern platforms.
 ```mermaid
 ---
 title: Handbook Map
@@ -19,11 +18,11 @@ flowchart LR
 
 ## How to use this site
 
-=== "Read"
-    Follow the Handbook and Engineering Journey from first principles to multi-region operations.
+### Read
+Follow the Handbook and Engineering Journey from first principles to multi-region operations.
 
-=== "Practice"
-    Use the Interview Companion and Production Simulator to rehearse realistic staff-level decisions.
+### Practice
+Use the Interview Companion and Production Simulator to rehearse realistic staff-level decisions.
 
-=== "Design"
-    Reuse the Architecture Library diagrams when explaining tradeoffs, failure domains, and scaling paths.
+### Design
+Reuse the Architecture Library diagrams when explaining tradeoffs, failure domains, and scaling paths.
