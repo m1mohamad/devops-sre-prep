@@ -1,6 +1,6 @@
 ---
 title: Release and Deployment Strategies
-tags: [cicd, platform-engineering]
+tags: [cicd, production, interview-prep]
 aliases: [Release and Deployment Strategies study note]
 ---
 
@@ -8,69 +8,97 @@ aliases: [Release and Deployment Strategies study note]
 
 ## 30-Second Answer
 
-Release and Deployment Strategies is the path from **stable revision** to **promotion or rollback**. The essential handoffs are canary revision, traffic weights, readiness, analysis metrics. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+Deployment changes runtime bits; release exposes behavior. Rolling, blue-green and canary strategies trade capacity, compatibility and blast radius differently.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[stable revision] --> N1[canary revision] --> N2[traffic weights] --> N3[readiness] --> N4[analysis metrics] --> N5[promotion or rollback]
+  Artifact --> Stable
+  Artifact --> Canary
+  Router --> Stable
+  Router --> Canary
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **analysis metrics** has different evidence and ownership from a failure at **canary revision**.
+## Core Components
 
-## Why It Exists
+The diagram names the authoritative intent, execution mechanism and external state. Their credentials, lifecycle and evidence must remain independently visible.
 
-Without release and deployment strategies, teams must manually coordinate stable revision, readiness, and promotion or rollback. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Use readiness/startup, PDB/surge and backward-compatible schemas. Canary needs representative traffic and analysis; blue-green needs duplicate capacity and careful state compatibility. Rollback cannot undo data migration or side effects.
 
-**stable revision** owns stage 1; **canary revision** owns stage 2; **traffic weights** owns stage 3; **readiness** owns stage 4; **analysis metrics** owns stage 5; **promotion or rollback** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **stable revision:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **canary revision:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **traffic weights:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **readiness:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **analysis metrics:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **promotion or rollback:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy stable revision with least privilege and an auditable change path. Isolate readiness by environment and failure domain, make promotion or rollback observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| a non-reproducible build changes bytes between environments | Compare stage latency and revision at canary revision | Stop promotion and restore the last verified input |
-| overprivileged pipeline credentials bypass review | Inspect saturation, quotas, events, and pending work at readiness | Add valid capacity or shed load; do not retry without a bound |
-| a green pipeline ignores rollout health | Compare the user result with promotion or rollback and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| bad readiness | ready endpoints/user probe | abort |
+| canary blind spot | segment metrics | expand analysis |
+| schema incompatibility | DB errors | forward repair/compat layer |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+curl --fail --max-time 5 https://service/health
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across stable revision and promotion or rollback improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **readiness**, and what user-facing SLO proves it works?
-* What remains available when **canary revision** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to readiness: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Release and Deployment Strategies** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **stable revision** send to **canary revision**?
-2. Which component stores or reports authoritative state?
-3. How does **analysis metrics** affect **promotion or rollback**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

@@ -1,6 +1,6 @@
 ---
 title: Networking: CNI, Services, and Ingress
-tags: [kubernetes, platform-engineering]
+tags: [kubernetes, production, interview-prep]
 aliases: [Networking: CNI, Services, and Ingress study note]
 ---
 
@@ -8,70 +8,100 @@ aliases: [Networking: CNI, Services, and Ingress study note]
 
 ## 30-Second Answer
 
-Networking: CNI, Services, and Ingress is the path from **Pod namespace and veth** to **Ingress or Gateway**. The essential handoffs are CNI IPAM, CoreDNS, Service VIP, EndpointSlice, kube-proxy or eBPF. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+A Pod gets a network namespace, veth and IP through CNI/IPAM. A Service selects Pods into EndpointSlices; kube-proxy iptables/IPVS or an eBPF dataplane translates ClusterIP traffic to ready endpoints. DNS and ingress are separate layers.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[Pod namespace and veth] --> N1[CNI IPAM] --> N2[CoreDNS] --> N3[Service VIP] --> N4[EndpointSlice] --> N5[kube-proxy or eBPF] --> N6[Ingress or Gateway]
+  PodNS --> Veth --> CNI --> NodeRouting --> RemotePod
+  CoreDNS --> ClusterIP --> Dataplane[kube-proxy / eBPF] --> EndpointSlice
+  ExternalLB --> Gateway[Ingress / Gateway API] --> ClusterIP
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **kube-proxy or eBPF** has different evidence and ownership from a failure at **CNI IPAM**.
+## Core Components
 
-## Why It Exists
+CNI installs interfaces/routes and may enforce NetworkPolicy. CoreDNS answers service discovery. EndpointSlice reflects selectors and readiness. Gateway/controller programs external load balancer and routes.
 
-Without networking: cni, services, and ingress, teams must manually coordinate pod namespace and veth, service vip, and ingress or gateway. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+A lookup follows Pod resolv.conf search/ndots to CoreDNS, then the DNS Service dataplane. Service traffic is DNATed or BPF-selected to an endpoint; cross-node routing may be overlay, native routing or cloud VPC. externalTrafficPolicy and implementation decide source-IP preservation; SNAT can erase the client identity. MTU, conntrack and asymmetric routes explain intermittent rather than total failure.
 
-**Pod namespace and veth** owns stage 1; **CNI IPAM** owns stage 2; **CoreDNS** owns stage 3; **Service VIP** owns stage 4; **EndpointSlice** owns stage 5; **kube-proxy or eBPF** owns stage 6; **Ingress or Gateway** owns stage 7. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **Pod namespace and veth:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **CNI IPAM:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **CoreDNS:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Service VIP:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **EndpointSlice:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **kube-proxy or eBPF:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Ingress or Gateway:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy pod namespace and veth with least privilege and an auditable change path. Isolate service vip by environment and failure domain, make ingress or gateway observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| API or watch lag hides progress | Compare stage latency and revision at CNI IPAM | Stop promotion and restore the last verified input |
-| resource, IP, or storage capacity blocks convergence | Inspect saturation, quotas, events, and pending work at Service VIP | Add valid capacity or shed load; do not retry without a bound |
-| a probe or policy reports a misleading serving state | Compare the user result with Ingress or Gateway and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| no Pod IP | CNI/IPAM event | restore IP capacity |
+| empty endpoints | selector/readiness mismatch | repair label or probe |
+| DNS SERVFAIL | CoreDNS/upstream latency | fix upstream/load |
+| large packets stall | capture/retransmit/MTU | correct path MTU |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+kubectl get pod -o wide
+kubectl get endpointslice -l kubernetes.io/service-name=api
+kubectl exec POD -- dig api.ns.svc.cluster.local
+kubectl exec POD -- ip route
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across pod namespace and veth and ingress or gateway improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **Service VIP**, and what user-facing SLO proves it works?
-* What remains available when **CNI IPAM** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to service vip: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Networking: CNI, Services, and Ingress** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **Pod namespace and veth** send to **CNI IPAM**?
-2. Which component stores or reports authoritative state?
-3. How does **kube-proxy or eBPF** affect **Ingress or Gateway**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

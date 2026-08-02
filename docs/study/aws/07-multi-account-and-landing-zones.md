@@ -1,6 +1,6 @@
 ---
 title: Multi-Account and Landing Zones
-tags: [aws, platform-engineering]
+tags: [aws, production, interview-prep]
 aliases: [Multi-Account and Landing Zones study note]
 ---
 
@@ -8,70 +8,97 @@ aliases: [Multi-Account and Landing Zones study note]
 
 ## 30-Second Answer
 
-Multi-Account and Landing Zones is the path from **AWS Organizations** to **account vending**. The essential handoffs are security OU, infrastructure OU, workload accounts, service control policies, central logging. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+Accounts are blast-radius, billing and policy boundaries. A landing zone supplies organization structure, identity, logging, security controls and network patterns without making every workload identical.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[AWS Organizations] --> N1[security OU] --> N2[infrastructure OU] --> N3[workload accounts] --> N4[service control policies] --> N5[central logging] --> N6[account vending]
+  IdentityCenter --> Org --> OUs
+  OUs --> SecurityAccount
+  OUs --> LogArchive
+  OUs --> WorkloadAccounts
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **central logging** has different evidence and ownership from a failure at **security OU**.
+## Core Components
 
-## Why It Exists
+The diagram names the authoritative intent, execution mechanism and external state. Their credentials, lifecycle and evidence must remain independently visible.
 
-Without multi-account and landing zones, teams must manually coordinate aws organizations, workload accounts, and account vending. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Use SCPs as guardrails, not grants; centralize immutable audit evidence and delegate service administration carefully. Stage policies against representative accounts and retain break-glass independent of a failed SSO path.
 
-**AWS Organizations** owns stage 1; **security OU** owns stage 2; **infrastructure OU** owns stage 3; **workload accounts** owns stage 4; **service control policies** owns stage 5; **central logging** owns stage 6; **account vending** owns stage 7. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **AWS Organizations:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **security OU:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **infrastructure OU:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **workload accounts:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **service control policies:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **central logging:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **account vending:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy aws organizations with least privilege and an auditable change path. Isolate workload accounts by environment and failure domain, make account vending observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| quota, IP, or zonal exhaustion defeats nominal capacity | Compare stage latency and revision at security OU | Stop promotion and restore the last verified input |
-| an IAM trust policy grants a wider principal than intended | Inspect saturation, quotas, events, and pending work at workload accounts | Add valid capacity or shed load; do not retry without a bound |
-| a shared account or network dependency widens blast radius | Compare the user result with account vending and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| bad SCP | denied CloudTrail event | rollback policy |
+| central dependency outage | cross-account errors | regional/account fallback |
+| account vending drift | Config evidence | reconcile baseline |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+curl --fail --max-time 5 https://service/health
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across aws organizations and account vending improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **workload accounts**, and what user-facing SLO proves it works?
-* What remains available when **security OU** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to workload accounts: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Multi-Account and Landing Zones** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **AWS Organizations** send to **security OU**?
-2. Which component stores or reports authoritative state?
-3. How does **central logging** affect **account vending**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

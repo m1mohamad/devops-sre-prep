@@ -1,625 +1,459 @@
 ---
-title: Production Incident Simulator
-tags: [incidents, sre, troubleshooting]
-aliases: [Simulator]
+title: Production Simulator
+tags: [incidents, simulator]
+aliases: [Production incidents]
 ---
 
 # Production Simulator
 
-These are fictional FinAI exercises. Read only through **Recent Changes**, state hypotheses and the next discriminating query, then reveal the timeline and root cause.
-
+For each fictional exercise, stop after **Investigation Timeline**, write three ranked hypotheses and the next falsifying query, then reveal the answer. Architectures and evidence are illustrative.
 
 # Scenario 1: Pending Pods in One Availability Zone
 
 ## Business Impact
 
-Checkout scoring capacity is 40% below target; p95 queue time is rising.
+Checkout capacity falls 35% in eu-west-1a; existing Pods serve but the rollout cannot replace replicas.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User1[Customer or engineer] --> Edge1[Edge/control API]
-  Edge1 --> Work1[Kubernetes workload]
-  Work1 --> Dep1[Cloud or data dependency]
-  Work1 --> Obs1[Telemetry]
+  Deployment --> ReplicaSet --> PendingPods --> Scheduler --> LabelsTaints --> NodeGroup --> Karpenter --> CloudQuotaSubnet
 ```
 
 ## Initial Symptoms
 
-An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
+At 10:04 the deployment reports 6/12 available. Only new Pods requesting zone a and an application toleration remain Pending.
 
 ## Available Evidence
 
-### Metrics
-
-`scheduler_pending_pods{reason="Unschedulable"}=18; node GPU allocatable is unchanged.`
-
-### Logs
-
-`0/12 nodes available: 3 untolerated taint, 9 did not match Pod node affinity.`
-
-### Events
-
-`FailedScheduling repeated after a node-group label migration.`
-
-### Recent Changes
-
-The change record and audit trail match the event evidence above; no other production change is in the window.
-
-> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
+Events say 0/18 nodes available: required node affinity and untolerated dedicated taint; Karpenter logs InsufficientFreeAddressesInSubnet and EC2 quota is near limit.
 
 ## Investigation Timeline
 
-1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
-2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
-3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
-4. **T+15:** Test the highest-information hypothesis without destructive restarts.
-5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
+10:06 describe one Pod; 10:09 compare schedulable nodes; 10:13 inspect affinity/taints; 10:17 check Karpenter NodeClaims; 10:21 confirm subnet IP and quota. Stop before the answer and rank these constraints.
+
+!!! question "Stop here"
+    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 
 ## Root Cause
 
-Node group label changed from accelerator=a10 to gpu-class=a10g, while the Deployment retained the old required affinity.
+A topology rule pinned Pods to a tainted group whose subnet lacked addresses; Karpenter could not satisfy the request.
 
 ## Immediate Mitigation
 
-Revert the label/config mismatch or patch reviewed Git intent; pause rollout.
+Pause rollout and relax the erroneous required affinity to another healthy AZ after confirming data locality.
 
 ## Permanent Fix
 
-Validate selectors against provisioner/node templates and canary node-group migrations. The fix is deployed progressively and verified under representative failure and load conditions.
+Expand/IP-plan worker subnets and encode feasible topology/taint tests in admission and pre-production scheduling.
 
 ## Prevention
 
-Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
+Expand/IP-plan worker subnets and encode feasible topology/taint tests in admission and pre-production scheduling.
 
 ## SLO and Alert Improvements
 
-Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
+Alert on unschedulable duration by reason and free subnet IPs; add rollout available-replica burn, not raw Pending count.
 
 ## Interview Discussion
 
-Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
+Distinguish the reversible mitigation from repair and prevention. Explain which evidence narrowed the failure domain without destroying it.
 
 ## What Would a Staff Engineer Change?
 
-Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
-
+Build a capacity dependency map joining scheduler reasons, autoscaler decisions, EC2 quotas and IPAM; assign one owner for the end-to-end capacity SLO.
 
 # Scenario 2: Argo CD Drift from a Manual Change
 
 ## Business Impact
 
-A fraud API remains available, but unreviewed replica and environment changes violate audit controls.
+Payments are healthy, but Argo continually reports OutOfSync and replica count oscillates during peak traffic.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User2[Customer or engineer] --> Edge2[Edge/control API]
-  Edge2 --> Work2[Kubernetes workload]
-  Work2 --> Dep2[Cloud or data dependency]
-  Work2 --> Obs2[Telemetry]
+  GitDesired --> ArgoCD --> KubernetesAPI --> LiveDeployment
+  ManualKubectl --> LiveDeployment
+  HPA --> LiveDeployment
 ```
 
 ## Initial Symptoms
 
-An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
+The desired Deployment says replicas: 4; live alternates between 4 and 18 every reconciliation interval.
 
 ## Available Evidence
 
-### Metrics
-
-`Argo application reconciliation count rises; replicas oscillate between 6 and 10.`
-
-### Logs
-
-`Argo diff reports /spec/replicas and one environment value; audit log names an engineer.`
-
-### Events
-
-`A manual kubectl scale occurred during a traffic spike.`
-
-### Recent Changes
-
-The change record and audit trail match the event evidence above; no other production change is in the window.
-
-> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
+Argo diff shows /spec/replicas; audit logs identify an emergency kubectl scale; managedFields shows HPA owns replicas while Git still declares it.
 
 ## Investigation Timeline
 
-1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
-2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
-3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
-4. **T+15:** Test the highest-information hypothesis without destructive restarts.
-5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
+14:02 inspect diff; 14:05 inspect managedFields; 14:08 check HPA events; 14:11 query audit principal; 14:16 suspend auto-sync while ownership is agreed. Form a hypothesis before reading root cause.
+
+!!! question "Stop here"
+    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 
 ## Root Cause
 
-A manual emergency patch conflicted with automated sync and HPA ownership was not defined.
+Three actors claimed replicas: Git, HPA and a manual patch. Argo restored four after every HPA update.
 
 ## Immediate Mitigation
 
-Commit the intended emergency value or revert the manual patch; assign field ownership.
+Remove replicas from Git-controlled manifest, restore HPA target, annotate/record the break-glass action, then re-enable sync.
 
 ## Permanent Fix
 
-Create an audited break-glass path and let HPA own replicas while Git owns bounds. The fix is deployed progressively and verified under representative failure and load conditions.
+Define field ownership, ignore differences only for fields intentionally owned elsewhere, and expire break-glass access.
 
 ## Prevention
 
-Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
+Define field ownership, ignore differences only for fields intentionally owned elsewhere, and expire break-glass access.
 
 ## SLO and Alert Improvements
 
-Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
+Alert on repeated sync transitions and high apply frequency; exclude expected HPA diff from drift SLO after ownership is encoded.
 
 ## Interview Discussion
 
-Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
+Distinguish the reversible mitigation from repair and prevention. Explain which evidence narrowed the failure domain without destroying it.
 
 ## What Would a Staff Engineer Change?
 
-Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
-
+Create policy tests that reject Git manifests claiming autoscaled fields and dashboard managedFields conflicts by controller.
 
 # Scenario 3: Bad Container Image in Production
 
 ## Business Impact
 
-New Pods fail and available replicas approach the disruption floor.
+The canary never becomes ready on Graviton nodes while the same digest works on x86 nodes.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User3[Customer or engineer] --> Edge3[Edge/control API]
-  Edge3 --> Work3[Kubernetes workload]
-  Work3 --> Dep3[Cloud or data dependency]
-  Work3 --> Obs3[Telemetry]
+  CIBuilder --> MultiArchIndex --> Registry --> NodeArchitecture --> ContainerRuntime --> StartupReadiness
 ```
 
 ## Initial Symptoms
 
-An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
+Pods on arm64 report exec format error; x86 Pods start. Registry tag looks correct and signature verification passes.
 
 ## Available Evidence
 
-### Metrics
-
-`Image pull succeeds; readiness is 0 and restart count climbs.`
-
-### Logs
-
-`exec format error appears before application logging initializes.`
-
-### Events
-
-`Rollout references a new multi-architecture digest built on an ARM-only runner.`
-
-### Recent Changes
-
-The change record and audit trail match the event evidence above; no other production change is in the window.
-
-> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
+crane manifest shows the index points both platforms to an amd64 manifest; kubelet event and runtime log record image platform mismatch.
 
 ## Investigation Timeline
 
-1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
-2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
-3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
-4. **T+15:** Test the highest-information hypothesis without destructive restarts.
-5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
+09:31 group failures by node architecture; 09:34 inspect image index; 09:38 compare child digests; 09:43 reproduce with an arm64 runner; 09:47 abort canary. State your hypothesis first.
+
+!!! question "Stop here"
+    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 
 ## Root Cause
 
-The manifest list omitted amd64 while policy checked signature but not required platform compatibility.
+The build job mislabeled an amd64 image as arm64; signing proved origin/integrity, not compatibility.
 
 ## Immediate Mitigation
 
-Revert Git to the previous verified digest and stop progression.
+Abort traffic and restore the prior multi-architecture index digest; quarantine the faulty digest.
 
 ## Permanent Fix
 
-Build a multi-platform index, run target-architecture smoke tests, and attest platform metadata. The fix is deployed progressively and verified under representative failure and load conditions.
+Run architecture-native startup tests, verify index platform metadata and sign attestations that include builder/platform evidence.
 
 ## Prevention
 
-Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
+Run architecture-native startup tests, verify index platform metadata and sign attestations that include builder/platform evidence.
 
 ## SLO and Alert Improvements
 
-Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
+Add readiness-by-architecture and image pull/start error alerts; rollout analysis must require success on every scheduled architecture.
 
 ## Interview Discussion
 
-Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
+Distinguish the reversible mitigation from repair and prevention. Explain which evidence narrowed the failure domain without destroying it.
 
 ## What Would a Staff Engineer Change?
 
-Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
+Make platform compatibility a promotion contract with test inventory tied to node classes, rather than trusting registry labels.
 
-
-# Scenario 4: Terraform State Lock and Suspected Corruption
+# Scenario 4: Terraform State Lock
 
 ## Business Impact
 
-A network security fix cannot be planned while teams fear concurrent mutation.
+A production network fix cannot plan; Terraform reports a lock, and AWS shows half of yesterday’s route changes.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User4[Customer or engineer] --> Edge4[Edge/control API]
-  Edge4 --> Work4[Kubernetes workload]
-  Work4 --> Dep4[Cloud or data dependency]
-  Work4 --> Obs4[Telemetry]
+  CIRunner --> Backend --> StateLock --> StateVersions --> AWSProvider --> PartiallyChangedResources
 ```
 
 ## Initial Symptoms
 
-An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
+No active pipeline is visible, but the lock owner identifies yesterday’s cancelled runner and state serial advanced once.
 
 ## Available Evidence
 
-### Metrics
-
-`Backend latency normal; no active CI jobs; lock age is 74 minutes.`
-
-### Logs
-
-`Terraform reports ConditionalCheckFailedException for the state lock identifier.`
-
-### Events
-
-`A CI runner was terminated during apply after changing two routes.`
-
-### Recent Changes
-
-The change record and audit trail match the event evidence above; no other production change is in the window.
-
-> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
+Backend object history, CI termination timestamp, CloudTrail route calls and terraform state show which resources changed before cancellation.
 
 ## Investigation Timeline
 
-1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
-2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
-3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
-4. **T+15:** Test the highest-information hypothesis without destructive restarts.
-5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
+11:02 verify no writer; 11:06 read lock metadata; 11:10 preserve state versions; 11:15 compare CloudTrail and state; 11:22 run refresh-only plan. Decide whether force-unlock is safe.
+
+!!! question "Stop here"
+    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 
 ## Root Cause
 
-The terminated apply left a stale lock; remote infrastructure may be partially changed but state is not proven corrupt.
+A cancelled apply left a stale lock after AWS accepted some calls; infrastructure and recorded mapping partially converged.
 
 ## Immediate Mitigation
 
-Preserve state, confirm no writer, inspect lock owner, take a backend version, then force-unlock only that ID and run refresh-only plan.
+After proving the writer is dead, force-unlock with peer approval, refresh-only plan, import/reconcile missing mappings, then plan the minimal route repair.
 
 ## Permanent Fix
 
-Use cancellation-safe runners, serialize per state, alert on lock age, version state, and rehearse recovery/import. The fix is deployed progressively and verified under representative failure and load conditions.
+Use non-cancellable apply sections, backend versioning, lock-owner telemetry and a documented partial-apply playbook.
 
 ## Prevention
 
-Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
+Use non-cancellable apply sections, backend versioning, lock-owner telemetry and a documented partial-apply playbook.
 
 ## SLO and Alert Improvements
 
-Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
+Alert on lock age beyond apply p99 and abandoned runners; track partial apply and state-version recovery exercises.
 
 ## Interview Discussion
 
-Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
+Distinguish the reversible mitigation from repair and prevention. Explain which evidence narrowed the failure domain without destroying it.
 
 ## What Would a Staff Engineer Change?
 
-Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
+Require incident tooling to join lock ID, CI job, state serial and CloudTrail calls; never present force-unlock as the default fix.
 
-
-# Scenario 5: Certificate Renewal Failure
+# Scenario 5: Certificate Renewal
 
 ## Business Impact
 
-Browsers will reject the customer API in 19 hours if renewal does not recover.
+TLS expiry is four days away for one wildcard domain; existing clients still succeed and other domains renew normally.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User5[Customer or engineer] --> Edge5[Edge/control API]
-  Edge5 --> Work5[Kubernetes workload]
-  Work5 --> Dep5[Cloud or data dependency]
-  Work5 --> Obs5[Telemetry]
+  Certificate --> CertManager --> ACMEIssuer --> DNSChallenge --> Secret --> Gateway --> ClientTLS
 ```
 
 ## Initial Symptoms
 
-An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
+Certificate Ready remains true from the old Secret, while RenewalTime passed and new CertificateRequest is pending.
 
 ## Available Evidence
 
-### Metrics
-
-`cert-manager certificate_expiration_timestamp_seconds falls; renewal errors rise.`
-
-### Logs
-
-`ACME challenge reports propagation check failed for TXT record.`
-
-### Events
-
-`Events show DNS01 self-check timeout; no Certificate revision created.`
-
-### Recent Changes
-
-The change record and audit trail match the event evidence above; no other production change is in the window.
-
-> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
+Challenge reports DNS provider AccessDenied; audit shows solver role policy lost the hosted-zone ARN during account migration.
 
 ## Investigation Timeline
 
-1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
-2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
-3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
-4. **T+15:** Test the highest-information hypothesis without destructive restarts.
-5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
+08:00 inspect Certificate conditions; 08:04 follow CertificateRequest/Order/Challenge; 08:09 query authoritative TXT; 08:13 inspect solver identity denial; 08:18 calculate expiry margin. Form a cause before root cause.
+
+!!! question "Stop here"
+    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 
 ## Root Cause
 
-DNS IAM policy rotation removed ChangeResourceRecordSets for the solver role.
+The DNS01 solver role no longer authorized the domain’s hosted zone, so ACME validation never observed its TXT record.
 
 ## Immediate Mitigation
 
-Restore least-privilege DNS permission, retry the challenge, and verify the served chain externally.
+Restore narrowly scoped zone permission, re-trigger challenge, confirm new Secret resourceVersion and test SNI from outside.
 
 ## Permanent Fix
 
-Test issuer credentials continuously, alert on renewal failure and expiry windows, and stage IAM changes. The fix is deployed progressively and verified under representative failure and load conditions.
+Continuously run synthetic issuance per issuer/account, validate IAM in migration tests and alert well before the final renewal retry window.
 
 ## Prevention
 
-Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
+Continuously run synthetic issuance per issuer/account, validate IAM in migration tests and alert well before the final renewal retry window.
 
 ## SLO and Alert Improvements
 
-Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
+Use renewal-stuck duration and days-to-expiry per issuer; page at a threshold derived from retry/approval time, not at expiration.
 
 ## Interview Discussion
 
-Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
+Distinguish the reversible mitigation from repair and prevention. Explain which evidence narrowed the failure domain without destroying it.
 
 ## What Would a Staff Engineer Change?
 
-Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
+Own certificates as a chain—issuer, identity, DNS, Secret and listener—with a freeze-safe emergency issuance drill.
 
-
-# Scenario 6: DNS and Load Balancer Outage
+# Scenario 6: DNS or Load Balancer Failure
 
 ## Business Impact
 
-A subset of regions cannot resolve or connect to the fraud API.
+One hostname returns intermittent 502s; direct Pod requests succeed and DNS answers differ by resolver region.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User6[Customer or engineer] --> Edge6[Edge/control API]
-  Edge6 --> Work6[Kubernetes workload]
-  Work6 --> Dep6[Cloud or data dependency]
-  Work6 --> Obs6[Telemetry]
+  Route53 --> HealthChecks --> ALBNLB --> TargetGroup --> IngressGateway --> Service --> EndpointSlice --> Pod
 ```
 
 ## Initial Symptoms
 
-An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
+Corporate resolvers sometimes return the old ALB, while public resolvers return the new weighted target. The old target group has no healthy endpoints.
 
 ## Available Evidence
 
-### Metrics
-
-`ALB targets are healthy; Route 53 NXDOMAIN increases only through one resolver path.`
-
-### Logs
-
-`CoreDNS logs upstream i/o timeout; node conntrack and NAT ports are saturated.`
-
-### Events
-
-`Cluster egress shifted through a smaller NAT gateway during cost work.`
-
-### Recent Changes
-
-The change record and audit trail match the event evidence above; no other production change is in the window.
-
-> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
+Route 53 has two weighted records with a long TTL and health evaluation disabled on the old record; ALB access logs correlate every 502 with that DNS answer.
 
 ## Investigation Timeline
 
-1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
-2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
-3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
-4. **T+15:** Test the highest-information hypothesis without destructive restarts.
-5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
+16:41 capture client resolver/answer; 16:45 compare authoritative response; 16:50 map ALB names to target health; 16:55 trace Service/EndpointSlice; 17:01 inspect TTL and weighted policy. Pause and rank DNS versus backend causes.
+
+!!! question "Stop here"
+    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 
 ## Root Cause
 
-Resolver traffic to upstream DNS shared an exhausted egress/conntrack path.
+Migration left an unhealthy old ALB eligible for 20% of answers, and caching extended exposure.
 
 ## Immediate Mitigation
 
-Restore egress capacity and route DNS through resilient endpoints; avoid random Pod restarts.
+Set old record weight to zero/delete after confirming new regional capacity; invalidate internal resolver cache only where controlled.
 
 ## Permanent Fix
 
-Separate DNS dependencies, cache safely, monitor resolver latency/rcode, and load-test egress changes. The fix is deployed progressively and verified under representative failure and load conditions.
+Use evaluate-target-health, bounded migration TTL, pre-shift target validation and synthetic probes that record resolved target.
 
 ## Prevention
 
-Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
+Use evaluate-target-health, bounded migration TTL, pre-shift target validation and synthetic probes that record resolved target.
 
 ## SLO and Alert Improvements
 
-Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
+Alert on per-ALB 5xx and DNS answer distribution; define edge SLO from external resolution through a real request.
 
 ## Interview Discussion
 
-Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
+Distinguish the reversible mitigation from repair and prevention. Explain which evidence narrowed the failure domain without destroying it.
 
 ## What Would a Staff Engineer Change?
 
-Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
-
+Create automated traffic-shift gates that bind a DNS target to load-balancer and EndpointSlice health, plus explicit failback steps.
 
 # Scenario 7: Database Connection Exhaustion
 
 ## Business Impact
 
-Fraud decisions time out although CPU and database query latency remain normal.
+API p99 rises to 12 seconds after scaling from 20 to 80 Pods; PostgreSQL CPU remains moderate but requests time out.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User7[Customer or engineer] --> Edge7[Edge/control API]
-  Edge7 --> Work7[Kubernetes workload]
-  Work7 --> Dep7[Cloud or data dependency]
-  Work7 --> Obs7[Telemetry]
+  ApplicationPods --> ConnectionPool --> PostgreSQL --> MaxConnections --> LocksSlowQueries --> Metrics
 ```
 
 ## Initial Symptoms
 
-An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
+New Pods each open a pool of 20 connections. Database rejects connections and many accepted sessions wait on one migration lock.
 
 ## Available Evidence
 
-### Metrics
-
-`RDS connections at maximum; each new Pod holds a full 40-connection pool.`
-
-### Logs
-
-`Applications log remaining connection slots are reserved; no slow-query spike.`
-
-### Events
-
-`HPA doubled replicas after a traffic burst.`
-
-### Recent Changes
-
-The change record and audit trail match the event evidence above; no other production change is in the window.
-
-> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
+pg_stat_activity reaches max_connections; pool wait grows; pg_locks identifies an AccessExclusiveLock held by a long transaction from migration job.
 
 ## Investigation Timeline
 
-1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
-2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
-3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
-4. **T+15:** Test the highest-information hypothesis without destructive restarts.
-5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
+13:20 stop autoscaling; 13:23 inspect pool acquisition; 13:27 count sessions by application_name; 13:31 build lock tree; 13:36 identify transaction owner. Decide what can be safely cancelled.
+
+!!! question "Stop here"
+    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 
 ## Root Cause
 
-Per-process pools multiplied past the database connection budget when replicas scaled.
+Horizontal scaling multiplied pool limits beyond the database budget while a long migration reduced useful concurrency.
 
 ## Immediate Mitigation
 
-Cap rollout/replicas, reduce pools, recycle safely, and use a pooler if already validated.
+Stop new replica growth, cancel the confirmed blocking migration with owner approval, lower pool caps and preserve admin connections.
 
 ## Permanent Fix
 
-Budget connections across max replicas, alert on headroom, load-test autoscaling, and apply admission/config checks. The fix is deployed progressively and verified under representative failure and load conditions.
+Allocate a global connection budget via PgBouncer, set transaction/lock timeouts and test migrations under production concurrency.
 
 ## Prevention
 
-Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
+Allocate a global connection budget via PgBouncer, set transaction/lock timeouts and test migrations under production concurrency.
 
 ## SLO and Alert Improvements
 
-Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
+Page on pool wait and connection utilization plus blocked-transaction age; latency SLO analysis should separate pool, lock and query time.
 
 ## Interview Discussion
 
-Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
+Distinguish the reversible mitigation from repair and prevention. Explain which evidence narrowed the failure domain without destroying it.
 
 ## What Would a Staff Engineer Change?
 
-Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
+Make connection capacity a platform contract linked to replica autoscaling and deploy admission, not an application-local default.
 
-
-# Scenario 8: LLM Inference Latency and GPU Exhaustion
+# Scenario 8: GPU Exhaustion
 
 ## Business Impact
 
-Analyst explanations exceed the latency SLO and requests queue, but errors remain low.
+LLM p99 doubles with flat request rate; queue depth climbs while GPU utilization averages only 45%.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User8[Customer or engineer] --> Edge8[Edge/control API]
-  Edge8 --> Work8[Kubernetes workload]
-  Work8 --> Dep8[Cloud or data dependency]
-  Work8 --> Obs8[Telemetry]
+  RequestQueue --> ModelServer --> GPUScheduler --> GPUNodePool --> ModelCache --> Autoscaling --> CloudGPUQuota
 ```
 
 ## Initial Symptoms
 
-An SLO signal changed after a recent operation. The service owner has declared an incident, assigned command and communications, and frozen unrelated changes. No root cause has been accepted.
+Large-model requests reject with OOM; small models work. New replicas remain Pending despite autoscaler demand.
 
 ## Available Evidence
 
-### Metrics
-
-`GPU memory is 99%; utilization 38%; time-to-first-token doubled and batch queue grows.`
-
-### Logs
-
-`vLLM reports KV-cache preemption and frequent recomputation.`
-
-### Events
-
-`A longer context limit and higher concurrency were enabled together.`
-
-### Recent Changes
-
-The change record and audit trail match the event evidence above; no other production change is in the window.
-
-> Stop here. Rank at least two hypotheses and request one piece of evidence that distinguishes them.
+Per-process GPU memory shows fragmentation and duplicate model caches; scheduler requests a GPU class at account quota; node launch is denied.
 
 ## Investigation Timeline
 
-1. **T+00:** Confirm user impact, affected dimensions, and SLO burn; appoint incident roles.
-2. **T+05:** Preserve revision IDs, events, audit records, dashboards, and representative logs/traces.
-3. **T+10:** Compare affected and healthy zones, nodes, versions, or request classes.
-4. **T+15:** Test the highest-information hypothesis without destructive restarts.
-5. **T+20:** Choose the smallest reversible mitigation and watch leading and user signals.
+19:04 split latency by model; 19:08 inspect queue/batch; 19:12 inspect GPU memory and processes; 19:17 describe Pending Pods; 19:21 inspect Karpenter and quota. Form hypotheses before root cause.
+
+!!! question "Stop here"
+    Rank hypotheses, name the next query, and state what evidence would falsify the leading hypothesis.
 
 ## Root Cause
 
-KV-cache demand exceeded GPU memory; preemption/recomputation reduced useful compute despite low utilization.
+A model rollout duplicated caches, fragmented GPU memory and requested a GPU class whose quota had no headroom; utilization hid memory saturation.
 
 ## Immediate Mitigation
 
-Revert context/concurrency, shed low-priority work, route to compatible spare capacity.
+Abort the new model revision, drain its queue with rejection guidance, consolidate old workers and route eligible requests to the smaller model.
 
 ## Permanent Fix
 
-Capacity-test token distributions, bound context/concurrency, expose cache metrics, and autoscale on queue/token demand. The fix is deployed progressively and verified under representative failure and load conditions.
+Canary model memory profiles, quota/headroom checks, cache-aware placement and admission based on GPU memory/queue—not average compute utilization.
 
 ## Prevention
 
-Add pre-change validation for this coupling, retain break-glass audit evidence, clarify field/config ownership, and run the failure in a game day. Prevention is assigned to an owner and tracked independently from restoring service.
+Canary model memory profiles, quota/headroom checks, cache-aware placement and admission based on GPU memory/queue—not average compute utilization.
 
 ## SLO and Alert Improvements
 
-Page on fast error-budget burn or imminent hard exhaustion, not a raw component threshold alone. Add the leading saturation or reconciliation signal from this incident, route it to the owning team, link a tested runbook, and remove symptoms that are not actionable.
+Alert on queue latency, rejection, GPU memory and Pending GPU reason; retain TTFT/p99 per model revision and batch size.
 
 ## Interview Discussion
 
-Explain why the first evidence does not prove causation. Separate mitigation from repair, show how you protected evidence, and state what would make rollback unsafe. Quantify impact and time only from the scenario.
+Distinguish the reversible mitigation from repair and prevention. Explain which evidence narrowed the failure domain without destroying it.
 
 ## What Would a Staff Engineer Change?
 
-Reduce the architectural failure domain, turn the hidden coupling into a versioned contract, negotiate ownership across platform and workload teams, and verify the prevention with an SLO or controlled experiment rather than closing on documentation alone.
+Establish model capacity envelopes and a degradation policy jointly owned by ML, platform and product before accepting a revision.

@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [Kubernetes Networking architecture]
 ---
 
+
 # Kubernetes Networking
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by kubernetes networking; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Make Pod addressing, Service load balancing, name resolution and north-south routing independently diagnosable.
 
 ## Architecture Diagram
 
@@ -31,25 +32,46 @@ flowchart LR
 
 ## Request or Control Flow
 
-CNI allocates a Pod IP, builds its network namespace and veth pair, and installs node or VPC routes. CoreDNS resolves a Service name to its virtual IP; kube-proxy rules or an eBPF dataplane select a ready EndpointSlice address. External traffic first traverses a cloud load balancer and an Ingress controller or Gateway implementation.
+CNI creates the Pod network namespace, veth and address, then programs node or cloud routing. CoreDNS resolves a Service name to ClusterIP. kube-proxy iptables/IPVS or an eBPF dataplane selects EndpointSlice backends. Gateway/Ingress and an external load balancer provide entry.
 
-## Production Mechanics
+## Component Responsibilities
 
-The Kubernetes model requires Pod-to-Pod reachability without NAT; the implementation may use VPC routes, overlays, or eBPF. NetworkPolicy only works when the chosen CNI enforces it. Trace DNS, VIP translation, selected endpoint, node routing, veth, and policy independently.
+CNI creates the Pod network namespace, veth and address, then programs node or cloud routing. CoreDNS resolves a Service name to ClusterIP. kube-proxy iptables/IPVS or an eBPF dataplane selects EndpointSlice backends. Gateway/Ingress and an external load balancer provide entry.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** CNI IPAM exhaustion prevents Pod sandbox creation.
-* **Boundary:** Stale EndpointSlices or dataplane rules black-hole a subset of connections.
-* **Boundary:** DNS overload looks like application connection failure.
+CNI/IPAM owns Pod addresses and routes; EndpointSlice controller owns backend records; Service is stable intent; CoreDNS owns cluster names; cloud/controller integrations own external targets.
 
+## Security Boundaries
 
-For Kubernetes Networking, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+NetworkPolicy is allow-list enforcement only when the CNI supports it. Secure Gateway TLS and restrict control APIs. Understand SNAT, externalTrafficPolicy and proxy protocol before relying on source IP.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The Kubernetes Networking trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Scale CoreDNS and dataplane programming for query/service churn. Subnet IPs can exhaust before CPU. EndpointSlice avoids one huge endpoints object; eBPF changes operational tooling, not Service semantics.
+
+## Failure Modes
+
+IPAM exhaustion blocks sandboxes; selector/readiness mismatch yields no endpoints; stale rules black-hole traffic; ndots/search causes DNS amplification; MTU or asymmetric routing breaks larger flows.
+
+## Recovery and Rollback
+
+Compare DNS, Service, EndpointSlice and direct Pod tests. Restore CNI/IPAM or routes before restarting workloads; revert policy or Gateway config through Git and validate source-IP behavior.
+
+## Operational Metrics
+
+Measure CNI allocation errors and free IPs; DNS latency/NXDOMAIN/SERVFAIL; EndpointSlice readiness; conntrack usage; drops/retransmits; Gateway and target health. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the Kubernetes Networking diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Make Pod addressing, Service load balancing, name resolution and north-south routing independently diagnosable.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

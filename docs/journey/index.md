@@ -1,609 +1,1470 @@
 ---
 title: FinAI Engineering Journey
-tags: [journey, fintech, platform-engineering]
+tags: [journey, architecture, fictional]
 aliases: [FinAI journey]
 ---
 
-# FinAI: From Python Prototype to Regulated AI Platform
+# FinAI: Continuous Architecture Evolution
 
-FinAI is a **fictional** regulated fintech company used to connect technical decisions in one continuous fraud-detection story. Targets below are scenario requirements, not company claims.
-
-
-## 1. Business requirements
-
-**New requirement.** A regulated customer needs fraud decisions within 150 ms and an auditable model/version trail.
-
-**Architecture change.** Define an availability/latency SLO, data classification, decision retention, and degraded manual-review path.
-
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
-
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+!!! note
+    FinAI is a fictional, illustrative architecture. Provider behavior is identified where relevant; capacity and compliance assumptions require validation.
 
 ```mermaid
 flowchart LR
-  S1[Stage idea] --> R1[Business requirements: requirement]
-  R1 --> C1[Controlled architecture change]
-  C1 --> E1[Evidence and feedback]
+  Prototype --> TestedService
+  TestedService --> OCIArtifact
+  OCIArtifact --> AWSFoundation
+  AWSFoundation --> EKS
+  EKS --> GitOps
+  GitOps --> DataPlatform
+  DataPlatform --> GPUInference
+  GPUInference --> MultiRegion
+  MultiRegion --> InternalPlatform
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+## Stage 1: Business and regulatory constraints
 
+### New Requirement
 
-## 2. Initial Python service
+Auditable fraud decisions, regional data residency and a recovery objective become release constraints.
 
-**New requirement.** Analysts need an API-backed rules and model prototype.
+### Existing Architecture
 
-**Architecture change.** Build a typed Python HTTP service with `/score`, readiness, structured decision ID, and timeout budgets.
+Before this decision, FinAI has a documented business hypothesis. It remains the rollback boundary until the new path proves its acceptance criteria.
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+### Architecture Change
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+FinAI adds workshop records become an ADR, data classification and initial SLO/RPO/RTO. This changes the previous stage by introducing the **DataClass** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S2[Stage 1] --> R2[Initial Python service: requirement]
-  R2 --> C2[Controlled architecture change]
-  C2 --> E2[Evidence and feedback]
+  ADR --> SLO
+  SLO --> DataClass
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 3. Git workflow
+### New Failure Mode Introduced
 
-**New requirement.** Multiple engineers must change rules without losing review evidence.
+An unrecorded regulatory assumption can invalidate the design.
 
-**Architecture change.** Protect main, require reviewed pull requests, signed CI status, and short-lived feature branches.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track constraint review coverage and unresolved risks.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Classify identities and decision records before customer data exists.
+
+### Cost Impact
+
+Fund compliance review before infrastructure.
+
+### Migration and Rollback
+
+Revert an assumption through adr review; no runtime migration yet. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Business and regulatory constraints** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 2: Initial Python scoring API
+
+### New Requirement
+
+Analysts need a repeatable HTTP scoring interface.
+
+### Existing Architecture
+
+Before this decision, FinAI has workshop records become an ADR, data classification and initial SLO/RPO/RTO. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds a typed Python API wraps the scoring function with validation and health endpoints. This changes the previous stage by introducing the **ScoringModel** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S3[Stage 2] --> R3[Git workflow: requirement]
-  R3 --> C3[Controlled architecture change]
-  C3 --> E3[Evidence and feedback]
+  PythonAPI --> ScoringModel
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 4. Unit and integration tests
+### New Failure Mode Introduced
 
-**New requirement.** A scoring change must not silently alter contractual behavior.
+Process crash or incompatible request schema rejects decisions.
 
-**Architecture change.** Separate pure scoring tests from PostgreSQL/Redis contract tests using disposable dependencies.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track request rate, errors, latency and model decision count.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Validate payloads and avoid logging regulated fields.
+
+### Cost Impact
+
+One small service instance establishes baseline cost.
+
+### Migration and Rollback
+
+Keep the notebook scorer callable while the api is validated. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Initial Python scoring API** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 3: Git and review workflow
+
+### New Requirement
+
+Multiple engineers must change code with attribution.
+
+### Existing Architecture
+
+Before this decision, FinAI has a typed Python API wraps the scoring function with validation and health endpoints. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds Git protected branches, pull requests and CODEOWNERS become the source workflow. This changes the previous stage by introducing the **PythonAPI** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S4[Stage 3] --> R4[Unit and integration tests: requirement]
-  R4 --> C4[Controlled architecture change]
-  C4 --> E4[Evidence and feedback]
+  Git --> PullRequest
+  PullRequest --> PythonAPI
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 5. Dependency resolution
+### New Failure Mode Introduced
 
-**New requirement.** A transitive library update changed numerical behavior.
+Review queue or bypass can ship an unapproved change.
 
-**Architecture change.** Lock dependencies with hashes, automate reviewed updates, and produce an SBOM.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track review latency, bypass count and commit-to-ticket linkage.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Signed identity and least repository administration.
+
+### Cost Impact
+
+Hosted git seats and review time.
+
+### Migration and Rollback
+
+Revert commits; retain the last tagged api revision. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Git and review workflow** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 4: Unit, integration, and contract testing
+
+### New Requirement
+
+Callers require schema compatibility and changes need fast evidence.
+
+### Existing Architecture
+
+Before this decision, FinAI has Git protected branches, pull requests and CODEOWNERS become the source workflow. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds CI runs unit tests, integration tests against dependencies and consumer/provider contracts on every PR. This changes the previous stage by introducing the **PythonAPI** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S5[Stage 4] --> R5[Dependency resolution: requirement]
-  R5 --> C5[Controlled architecture change]
-  C5 --> E5[Evidence and feedback]
+  PullRequest --> CI
+  CI --> UnitTests
+  UnitTests --> ContractTests
+  ContractTests --> PythonAPI
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 6. Build and artifacts
+### New Failure Mode Introduced
 
-**New requirement.** FinAI needs a single traceable release input.
+Flaky integration tests normalize bypasses.
 
-**Architecture change.** Build once from a clean checkout and label the artifact with commit and provenance.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track test duration, flake rate and escaped defects.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Fork prs receive no production secrets.
+
+### Cost Impact
+
+Parallel runners trade spend for feedback time.
+
+### Migration and Rollback
+
+Revert test/api change; quarantine only with owner and expiry. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Unit, integration, and contract testing** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 5: Locked dependencies and SBOM
+
+### New Requirement
+
+The build must identify and reproduce third-party code.
+
+### Existing Architecture
+
+Before this decision, FinAI has CI runs unit tests, integration tests against dependencies and consumer/provider contracts on every PR. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds a lock file pins resolution and CI emits an SBOM alongside vulnerability results. This changes the previous stage by introducing the **SBOM** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S6[Stage 5] --> R6[Build and artifacts: requirement]
-  R6 --> C6[Controlled architecture change]
-  C6 --> E6[Evidence and feedback]
+  CI --> Lockfile
+  Lockfile --> PackageIndex
+  PackageIndex --> SBOM
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 7. OCI image
+### New Failure Mode Introduced
 
-**New requirement.** Runtime differences between laptops and CI caused incidents.
+A compromised or unavailable package blocks build.
 
-**Architecture change.** Package a non-root, minimal OCI image with exec-form entrypoint and immutable digest.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track resolution drift, known critical findings and SBOM coverage.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Private index authentication and dependency review.
+
+### Cost Impact
+
+Cache downloads but expire deliberately.
+
+### Migration and Rollback
+
+Revert lock change; do not silently unlock production builds. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Locked dependencies and SBOM** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 6: Immutable OCI artifact
+
+### New Requirement
+
+Runtime bytes must equal tested bytes.
+
+### Existing Architecture
+
+Before this decision, FinAI has a lock file pins resolution and CI emits an SBOM alongside vulnerability results. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds a multi-stage build produces one non-root OCI image digest from the tested commit. This changes the previous stage by introducing the **RuntimeTest** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S7[Stage 6] --> R7[OCI image: requirement]
-  R7 --> C7[Controlled architecture change]
-  C7 --> E7[Evidence and feedback]
+  CI --> OCIBuilder
+  OCIBuilder --> ImageDigest
+  ImageDigest --> RuntimeTest
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 8. ECR registry
+### New Failure Mode Introduced
 
-**New requirement.** Production needs controlled artifact distribution.
+Architecture mismatch or missing runtime file prevents startup.
 
-**Architecture change.** Push signed images to ECR, scan them, restrict mutation, and expire only unreferenced tags.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track build duration, image size and startup test.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Minimal base, read-only filesystem and dropped capabilities.
+
+### Cost Impact
+
+Layer caching reduces transfer and registry storage.
+
+### Migration and Rollback
+
+Promote prior digest; never rebuild it for rollback. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Immutable OCI artifact** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 7: ECR and signing
+
+### New Requirement
+
+AWS environments need a controlled artifact trust boundary.
+
+### Existing Architecture
+
+Before this decision, FinAI has a multi-stage build produces one non-root OCI image digest from the tested commit. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds ECR stores immutable digests; CI signs provenance and admission can verify signer identity. This changes the previous stage by introducing the **Provenance** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S8[Stage 7] --> R8[ECR registry: requirement]
-  R8 --> C8[Controlled architecture change]
-  C8 --> E8[Evidence and feedback]
+  OCIBuilder --> ECR
+  ECR --> Cosign
+  Cosign --> Provenance
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 9. Terraform AWS foundation
+### New Failure Mode Introduced
 
-**New requirement.** Accounts and networking cannot remain click-operated.
+Signature policy or replication failure blocks promotion.
 
-**Architecture change.** Create isolated state and modules for accounts, VPC endpoints, KMS, logging, and budgets.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track push latency, scan findings, signature verification failures.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Oidc gives ci scoped ecr access; keys are short-lived.
+
+### Cost Impact
+
+Lifecycle policies retain rollback digests without unbounded storage.
+
+### Migration and Rollback
+
+Point deployment to prior signed digest; preserve rejected evidence. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **ECR and signing** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 8: Terraform account and VPC foundation
+
+### New Requirement
+
+Workloads need isolated, repeatable AWS networking.
+
+### Existing Architecture
+
+Before this decision, FinAI has ECR stores immutable digests; CI signs provenance and admission can verify signer identity. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds Terraform creates account roles, multi-AZ VPC, public/private subnets, endpoints and remote encrypted state. This changes the previous stage by introducing the **Subnets** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S9[Stage 8] --> R9[Terraform AWS foundation: requirement]
-  R9 --> C9[Controlled architecture change]
-  C9 --> E9[Evidence and feedback]
+  Terraform --> RemoteState
+  RemoteState --> AWSAccount
+  AWSAccount --> VPC
+  VPC --> Subnets
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 10. EKS cluster
+### New Failure Mode Introduced
 
-**New requirement.** The service needs standardized scheduling and rollout controls.
+Partial apply or ip plan error leaves mismatched infrastructure.
 
-**Architecture change.** Provision a multi-AZ managed control plane and separate system/application node groups.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track plan drift, lock wait, free CIDRs and NAT traffic.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Cross-account role assumption and state access are separated.
+
+### Cost Impact
+
+Nat and cross-az transfer become visible recurring costs.
+
+### Migration and Rollback
+
+Reconcile state/aws carefully; restoring state does not revert resources. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Terraform account and VPC foundation** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 9: EKS platform
+
+### New Requirement
+
+The service needs managed orchestration, zonal capacity and workload isolation.
+
+### Existing Architecture
+
+Before this decision, FinAI has Terraform creates account roles, multi-AZ VPC, public/private subnets, endpoints and remote encrypted state. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds EKS adds a managed control plane, system/application node groups, CNI, CSI and scoped workload identity. This changes the previous stage by introducing the **CNI** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S10[Stage 9] --> R10[EKS cluster: requirement]
-  R10 --> C10[Controlled architecture change]
-  C10 --> E10[Evidence and feedback]
+  VPC --> EKSControlPlane
+  EKSControlPlane --> SystemNodes
+  SystemNodes --> AppNodes
+  AppNodes --> CNI
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 11. Helm packaging
+### New Failure Mode Introduced
 
-**New requirement.** Environment configuration has become copy-pasted YAML.
+Subnet ip or quota exhaustion leaves pods pending.
 
-**Architecture change.** Package stable Kubernetes resources in a versioned Helm chart with a small values contract.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track API latency, pending Pods, node readiness and free subnet IPs.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Private endpoint path, pod identity and restricted cluster access.
+
+### Cost Impact
+
+System headroom and multi-az nodes add reliability cost.
+
+### Migration and Rollback
+
+Retain the previous compute path until eks readiness and load tests pass. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **EKS platform** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 10: Helm packaging
+
+### New Requirement
+
+The Kubernetes objects need a versioned installation contract.
+
+### Existing Architecture
+
+Before this decision, FinAI has EKS adds a managed control plane, system/application node groups, CNI, CSI and scoped workload identity. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds a Helm chart packages Deployment, Service, PDB and values schema with deterministic rendering. This changes the previous stage by introducing the **PDB** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S11[Stage 10] --> R11[Helm packaging: requirement]
-  R11 --> C11[Controlled architecture change]
-  C11 --> E11[Evidence and feedback]
+  HelmChart --> ValuesSchema
+  ValuesSchema --> Deployment
+  Deployment --> Service
+  Service --> PDB
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 12. GitOps repository
+### New Failure Mode Introduced
 
-**New requirement.** Deployment intent needs review independent of application builds.
+Bad values or immutable field breaks upgrade.
 
-**Architecture change.** Record environment digest and chart values in a restricted Git repository.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track lint/render test outcome and Helm release status.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Schema restricts unsafe settings and service account defaults.
+
+### Cost Impact
+
+Templating cost is negligible; ownership toil is not.
+
+### Migration and Rollback
+
+Helm rollback only restores manifests; keep app/data compatibility. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Helm packaging** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 11: GitOps repository
+
+### New Requirement
+
+Environment promotion needs reviewed desired state distinct from source.
+
+### Existing Architecture
+
+Before this decision, FinAI has a Helm chart packages Deployment, Service, PDB and values schema with deterministic rendering. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds a GitOps repository pins chart and image digest per environment. This changes the previous stage by introducing the **ProdOverlay** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S12[Stage 11] --> R12[GitOps repository: requirement]
-  R12 --> C12[Controlled architecture change]
-  C12 --> E12[Evidence and feedback]
+  SourceGit --> ECR
+  ECR --> GitOpsRepo
+  GitOpsRepo --> ProdOverlay
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 13. Argo CD reconciliation
+### New Failure Mode Introduced
 
-**New requirement.** Manual kubectl changes bypass the audit trail.
+Configuration drift or wrong environment pr changes intent.
 
-**Architecture change.** Argo CD compares desired and live state; auto-sync is scoped and pruning guarded.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track review latency, digest promotion age and drift detection.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Branch protection separates application author from production approval.
+
+### Cost Impact
+
+Repository automation replaces manual deployment toil.
+
+### Migration and Rollback
+
+Revert git commit to the previously healthy digest/config. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **GitOps repository** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 12: Argo CD
+
+### New Requirement
+
+Clusters must continuously converge on reviewed Git intent.
+
+### Existing Architecture
+
+Before this decision, FinAI has a GitOps repository pins chart and image digest per environment. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds repo-server renders the overlay and application-controller diffs/syncs Kubernetes resources. This changes the previous stage by introducing the **KubernetesAPI** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S13[Stage 12] --> R13[Argo CD reconciliation: requirement]
-  R13 --> C13[Controlled architecture change]
-  C13 --> E13[Evidence and feedback]
+  GitOpsRepo --> ArgoRepoServer
+  ArgoRepoServer --> ArgoController
+  ArgoController --> KubernetesAPI
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 14. Kubernetes request flow
+### New Failure Mode Introduced
 
-**New requirement.** Teams mistake accepted Deployments for completed releases.
+Bad prune or render failure blocks/erases desired objects.
 
-**Architecture change.** Expose admission, Deployment/ReplicaSet reconciliation, scheduling, readiness, and EndpointSlice status.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track sync status, health status, render time and reconciliation errors.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Appprojects scope repositories, namespaces and cluster credentials.
+
+### Cost Impact
+
+Controller and repository scale add platform overhead.
+
+### Migration and Rollback
+
+Disable automation if necessary, revert git, then sync; argo does not infer app rollback. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Argo CD** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 13: Secrets Manager and External Secrets
+
+### New Requirement
+
+Runtime credentials must rotate without entering Git.
+
+### Existing Architecture
+
+Before this decision, FinAI has repo-server renders the overlay and application-controller diffs/syncs Kubernetes resources. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds Secrets Manager is authoritative; External Secrets uses workload identity to materialize a Kubernetes Secret. This changes the previous stage by introducing the **PythonAPI** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S14[Stage 13] --> R14[Kubernetes request flow: requirement]
-  R14 --> C14[Controlled architecture change]
-  C14 --> E14[Evidence and feedback]
+  SecretsManager --> ExternalSecrets
+  ExternalSecrets --> KubernetesSecret
+  KubernetesSecret --> PythonAPI
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 15. Secrets
+### New Failure Mode Introduced
 
-**New requirement.** Static AWS keys appeared in CI variables.
+Provider/api failure prevents refresh and an expired credential breaks runtime.
 
-**Architecture change.** Use workload identity and External Secrets to project Secrets Manager values with rotation ownership.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track refresh errors, secret age and application authentication failures.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Scope each secretstore identity and encrypt both stores.
+
+### Cost Impact
+
+Api calls and secret replicas have modest cost but operational risk.
+
+### Migration and Rollback
+
+Retain overlapping credential versions; revert consumer before removing old secret. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Secrets Manager and External Secrets** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 14: cert-manager and TLS
+
+### New Requirement
+
+Every public and internal boundary requires managed certificates.
+
+### Existing Architecture
+
+Before this decision, FinAI has Secrets Manager is authoritative; External Secrets uses workload identity to materialize a Kubernetes Secret. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds cert-manager reconciles Certificate through ACME DNS challenge into Gateway TLS Secret. This changes the previous stage by introducing the **TLSSecret** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S15[Stage 14] --> R15[Secrets: requirement]
-  R15 --> C15[Controlled architecture change]
-  C15 --> E15[Evidence and feedback]
+  Certificate --> CertManager
+  CertManager --> ACME
+  ACME --> DNSChallenge
+  DNSChallenge --> TLSSecret
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 16. TLS
+### New Failure Mode Introduced
 
-**New requirement.** Manual certificate renewals threaten availability.
+Challenge or issuer failure approaches expiry.
 
-**Architecture change.** cert-manager reconciles Certificate resources through an approved issuer and alerts before expiry.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track days to expiry, challenge failures and TLS probe results.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Restrict secret reads and dns solver role; plan trust-root boundaries.
+
+### Cost Impact
+
+Public certificates and dns calls are cheap; mesh pki would add toil.
+
+### Migration and Rollback
+
+Keep prior valid secret and listener while correcting issuance. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **cert-manager and TLS** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 15: Route 53 and ALB or Gateway API
+
+### New Requirement
+
+Customers need a stable, health-checked entry point.
+
+### Existing Architecture
+
+Before this decision, FinAI has cert-manager reconciles Certificate through ACME DNS challenge into Gateway TLS Secret. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds Route 53 resolves to ALB; Gateway routes TLS traffic through Service to ready EndpointSlices. This changes the previous stage by introducing the **EndpointSlice** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S16[Stage 15] --> R16[TLS: requirement]
-  R16 --> C16[Controlled architecture change]
-  C16 --> E16[Evidence and feedback]
+  Route53 --> ALB
+  ALB --> Gateway
+  Gateway --> Service
+  Service --> EndpointSlice
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 17. Traffic
+### New Failure Mode Introduced
 
-**New requirement.** Customers need a stable regional endpoint.
+Healthy load balancer with empty endpoints returns errors.
 
-**Architecture change.** Route 53 targets an ALB managed from Ingress/Gateway configuration, with WAF and explicit health semantics.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track DNS answer, target health, ready endpoints and edge p99.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Waf/rate limits and tls terminate at declared boundaries.
+
+### Cost Impact
+
+Alb hours/lcus and cross-az bytes join the unit cost.
+
+### Migration and Rollback
+
+Shift weighted dns or restore previous gateway config and targets. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Route 53 and ALB or Gateway API** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 16: PostgreSQL
+
+### New Requirement
+
+Fraud decisions require transactional durable records.
+
+### Existing Architecture
+
+Before this decision, FinAI has Route 53 resolves to ALB; Gateway routes TLS traffic through Service to ready EndpointSlices. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds RDS PostgreSQL adds pooled connections, multi-AZ standby, WAL backups and PITR. This changes the previous stage by introducing the **WALArchive** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S17[Stage 16] --> R17[Traffic: requirement]
-  R17 --> C17[Controlled architecture change]
-  C17 --> E17[Evidence and feedback]
+  PythonAPI --> PgBouncer
+  PgBouncer --> RDSPrimary
+  RDSPrimary --> RDSStandby
+  RDSStandby --> WALArchive
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 18. PostgreSQL and Redis
+### New Failure Mode Introduced
 
-**New requirement.** Decisions need durable audit data and low-latency feature caching.
+Connection exhaustion or lock chain stalls scoring writes.
 
-**Architecture change.** Use Multi-AZ PostgreSQL for records and Redis for bounded-TTL derived features; neither is interchangeable.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track pool wait, sessions, locks, WAL/archive lag and query latency.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Database identity, encryption and row/data access auditing.
+
+### Cost Impact
+
+Instance, iops, backup retention and cross-az cost dominate.
+
+### Migration and Rollback
+
+Use backward-compatible schema; restore/pitr is separate from application rollback. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **PostgreSQL** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 17: Redis
+
+### New Requirement
+
+Repeated lookups need a low-latency cache without making it authoritative.
+
+### Existing Architecture
+
+Before this decision, FinAI has RDS PostgreSQL adds pooled connections, multi-AZ standby, WAL backups and PITR. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds Redis caches bounded, TTL-controlled results and the API falls back to PostgreSQL. This changes the previous stage by introducing the **RDSPrimary** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S18[Stage 17] --> R18[PostgreSQL and Redis: requirement]
-  R18 --> C18[Controlled architecture change]
-  C18 --> E18[Evidence and feedback]
+  PythonAPI --> Redis
+  Redis --> PgBouncer
+  PgBouncer --> RDSPrimary
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 19. Kafka events
+### New Failure Mode Introduced
 
-**New requirement.** Synchronous scoring cannot absorb every transaction spike.
+Hot key, eviction or stampede overloads both cache and database.
 
-**Architecture change.** Publish keyed fraud events to Kafka, make consumers idempotent, and monitor lag and poison records.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track hit rate, evictions, memory, hot keys and origin load.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Tls/auth and key design prevent tenant crossover.
+
+### Cost Impact
+
+Memory is premium; cache only data that avoids more expensive work.
+
+### Migration and Rollback
+
+Disable/bypass cache with origin admission limits; data can be rebuilt. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Redis** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 18: Kafka events
+
+### New Requirement
+
+Downstream investigations require replayable decision events.
+
+### Existing Architecture
+
+Before this decision, FinAI has Redis caches bounded, TTL-controlled results and the API falls back to PostgreSQL. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds the API publishes schema-versioned events; Kafka partitions retain them and consumers checkpoint offsets. This changes the previous stage by introducing the **FraudConsumer** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S19[Stage 18] --> R19[Kafka events: requirement]
-  R19 --> C19[Controlled architecture change]
-  C19 --> E19[Evidence and feedback]
+  PythonAPI --> Outbox
+  Outbox --> Kafka
+  Kafka --> FraudConsumer
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 20. Model serving
+### New Failure Mode Introduced
 
-**New requirement.** Model downloads make API rollout slow and memory-heavy.
+Poison event or consumer lag delays downstream detection.
 
-**Architecture change.** Separate inference behind a versioned service with model cache, bounded concurrency, and latency metrics.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track produce errors, consumer lag, rebalance time and dead-letter count.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Acls by topic and classified payload fields.
+
+### Cost Impact
+
+Broker storage, replication and cross-az traffic increase cost.
+
+### Migration and Rollback
+
+Dual-write/outbox migration; stop new consumer while retaining offsets. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Kafka events** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 19: Model serving
+
+### New Requirement
+
+Model revisions need independent rollout and scalable inference runtime.
+
+### Existing Architecture
+
+Before this decision, FinAI has the API publishes schema-versioned events; Kafka partitions retain them and consumers checkpoint offsets. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds a model gateway selects a signed registry revision served by KServe/vLLM/Triton. This changes the previous stage by introducing the **ObjectStore** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S20[Stage 19] --> R20[Model serving: requirement]
-  R20 --> C20[Controlled architecture change]
-  C20 --> E20[Evidence and feedback]
+  ModelGateway --> ModelRegistry
+  ModelRegistry --> KServe
+  KServe --> ObjectStore
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 21. ModelService controller
+### New Failure Mode Introduced
 
-**New requirement.** Every model team hand-builds unsafe serving manifests.
+Cold model load or incompatible runtime misses latency slo.
 
-**Architecture change.** Add a ModelService CRD/controller that owns serving, identity, autoscaling, status, and finalization.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track model load time, TTFT, throughput and revision errors.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Authorize tenant/model and govern prompt/response retention.
+
+### Cost Impact
+
+Gpu-ready serving is expensive even before dedicated gpu stages.
+
+### Migration and Rollback
+
+Route to prior model revision or approved simpler scoring path. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Model serving** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 20: ModelService custom controller
+
+### New Requirement
+
+Teams need a safe declarative model-serving API.
+
+### Existing Architecture
+
+Before this decision, FinAI has a model gateway selects a signed registry revision served by KServe/vLLM/Triton. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds ModelService CRD and controller reconcile KServe/Deployment, Service and autoscaling with status conditions. This changes the previous stage by introducing the **KServe** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S21[Stage 20] --> R21[ModelService controller: requirement]
-  R21 --> C21[Controlled architecture change]
-  C21 --> E21[Evidence and feedback]
+  ModelServiceCRD --> Informer
+  Informer --> WorkQueue
+  WorkQueue --> Reconciler
+  Reconciler --> KServe
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 22. GPU node groups
+### New Failure Mode Introduced
 
-**New requirement.** CPU inference misses the latency target.
+Stuck finalizer or retrying poison spec blocks lifecycle.
 
-**Architecture change.** Add tainted A10G nodes with device plugin/operator, topology constraints, quotas, and no static credentials.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track workqueue age, reconcile errors, observedGeneration and condition reasons.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Controller rbac and model-store workload identity are narrowly scoped.
+
+### Cost Impact
+
+Controller is cheap; platform ownership and crd compatibility are not.
+
+### Migration and Rollback
+
+Roll back compatible controller; never remove finalizer before external cleanup. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **ModelService custom controller** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 21: GPU scheduling
+
+### New Requirement
+
+Large models require scarce heterogeneous accelerators.
+
+### Existing Architecture
+
+Before this decision, FinAI has ModelService CRD and controller reconcile KServe/Deployment, Service and autoscaling with status conditions. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds GPU node groups, device plugin, labels/taints and topology-aware scheduling place explicit extended-resource requests. This changes the previous stage by introducing the **GPUQuota** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S22[Stage 21] --> R22[GPU node groups: requirement]
-  R22 --> C22[Controlled architecture change]
-  C22 --> E22[Evidence and feedback]
+  PendingModelPod --> Scheduler
+  Scheduler --> DevicePlugin
+  DevicePlugin --> GPUNodePool
+  GPUNodePool --> GPUQuota
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 23. Autoscaling
+### New Failure Mode Introduced
 
-**New requirement.** Burst traffic queues while GPUs remain expensive when idle.
+Fragmented memory or cloud gpu quota strands requests.
 
-**Architecture change.** Scale API on concurrency, inference on queue/tokens, and nodes on schedulable GPU demand with headroom.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track allocated GPU, memory, pending reason, node launch and quota.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Isolate untrusted model code and restrict device/node access.
+
+### Cost Impact
+
+Gpu idle time becomes the largest cost driver.
+
+### Migration and Rollback
+
+Route supported model to cpu/smaller gpu or prior capacity pool. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **GPU scheduling** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 22: Autoscaling
+
+### New Requirement
+
+Demand varies faster than manual GPU provisioning.
+
+### Existing Architecture
+
+Before this decision, FinAI has GPU node groups, device plugin, labels/taints and topology-aware scheduling place explicit extended-resource requests. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds KEDA/HPA scales replicas on queue and latency signals while Karpenter adds suitable GPU nodes. This changes the previous stage by introducing the **GPUNodePool** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S23[Stage 22] --> R23[Autoscaling: requirement]
-  R23 --> C23[Controlled architecture change]
-  C23 --> E23[Evidence and feedback]
+  RequestQueue --> KEDA
+  KEDA --> ModelPods
+  ModelPods --> Karpenter
+  Karpenter --> GPUNodePool
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 24. Observability
+### New Failure Mode Introduced
 
-**New requirement.** Teams cannot join a decision to a model and dependency.
+Cold-start feedback loop scales too late or oscillates.
 
-**Architecture change.** Instrument OpenTelemetry; Prometheus/Grafana hold metrics, Loki logs, and Tempo traces with decision IDs.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track queue latency, desired/ready replicas, node launch and rejection rate.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Tenant quota precedes autoscaling to prevent denial-of-wallet.
+
+### Cost Impact
+
+Warm capacity buys latency; aggressive scale-down reloads models.
+
+### Migration and Rollback
+
+Cap admission and restore known min replicas/scaling policy. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Autoscaling** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 23: Unified observability
+
+### New Requirement
+
+Operators need correlation from customer request through model and dependencies.
+
+### Existing Architecture
+
+Before this decision, FinAI has KEDA/HPA scales replicas on queue and latency signals while Karpenter adds suitable GPU nodes. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds OpenTelemetry Collectors send traces to Tempo/logs to Loki; Prometheus scrapes metrics; Grafana correlates revision, trace, pod, node, cluster/account/region. This changes the previous stage by introducing the **Grafana** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S24[Stage 23] --> R24[Observability: requirement]
-  R24 --> C24[Controlled architecture change]
-  C24 --> E24[Evidence and feedback]
+  PythonAPI --> OTelCollector
+  OTelCollector --> Prometheus
+  Prometheus --> Loki
+  Loki --> Tempo
+  Tempo --> Grafana
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 25. Canary deployment
+### New Failure Mode Introduced
 
-**New requirement.** A model can be healthy yet degrade fraud quality.
+Collector backpressure or label cardinality blinds responders.
 
-**Architecture change.** Expose 5% traffic through a controlled rollout and analyze latency, errors, drift, and business guardrails.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track export drops, scrape/remote-write lag, active streams, trace coverage and alert delivery.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Redact regulated fields and isolate telemetry tenants.
+
+### Cost Impact
+
+Retention, log bytes and cardinality require explicit budgets.
+
+### Migration and Rollback
+
+Keep serving when telemetry degrades; reduce ingestion and preserve slo alerts. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Unified observability** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 24: Canary rollout
+
+### New Requirement
+
+New code and model revisions need bounded exposure.
+
+### Existing Architecture
+
+Before this decision, FinAI has OpenTelemetry Collectors send traces to Tempo/logs to Loki; Prometheus scrapes metrics; Grafana correlates revision, trace, pod, node, cluster/account/region. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds Argo Rollouts shifts ALB/Gateway traffic by steps and queries SLO/quality analysis before promotion. This changes the previous stage by introducing the **AnalysisRun** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S25[Stage 24] --> R25[Canary deployment: requirement]
-  R25 --> C25[Controlled architecture change]
-  C25 --> E25[Evidence and feedback]
+  GitOpsRepo --> ArgoRollouts
+  ArgoRollouts --> StableRevision
+  StableRevision --> CanaryRevision
+  CanaryRevision --> AnalysisRun
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 26. Production incident
+### New Failure Mode Introduced
 
-**New requirement.** The canary raises latency without error-rate movement.
+Weak analysis passes a harmful semantic model change.
 
-**Architecture change.** Declare an incident, freeze rollout, compare traces and GPU batching by revision, and preserve evidence.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track canary versus stable error, p99, rejection and quality guardrails.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Ensure both revisions enforce identical policy and data handling.
+
+### Cost Impact
+
+Temporary surge and duplicate model cache increase gpu cost.
+
+### Migration and Rollback
+
+Abort traffic to stable and revert git digest; database compatibility remains required. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Canary rollout** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 25: Production incident and rollback
+
+### New Requirement
+
+A canary raises false fraud declines and customer impact.
+
+### Existing Architecture
+
+Before this decision, FinAI has Argo Rollouts shifts ALB/Gateway traffic by steps and queries SLO/quality analysis before promotion. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds incident command pauses rollout, routes to stable, validates recovery and preserves model/input evidence. This changes the previous stage by introducing the **EvidenceStore** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S26[Stage 25] --> R26[Production incident: requirement]
-  R26 --> C26[Controlled architecture change]
-  C26 --> E26[Evidence and feedback]
+  Alert --> IncidentCommander
+  IncidentCommander --> ArgoRollouts
+  ArgoRollouts --> StableRevision
+  StableRevision --> EvidenceStore
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 27. Rollback
+### New Failure Mode Introduced
 
-**New requirement.** Customer latency is consuming the error budget.
+Rollback restores latency but cached or persisted bad decisions remain.
 
-**Architecture change.** Shift traffic to the verified digest and revert Git intent; do not expect Argo CD to infer rollback.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track decline SLI, support volume, revision split and recovery time.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Break-glass is time-bound/audited; evidence access protects customer data.
+
+### Cost Impact
+
+Mitigation may hold surplus gpu and manual review cost.
+
+### Migration and Rollback
+
+Abort revision, revert git, invalidate only proven cache keys; repair data separately. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Production incident and rollback** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 26: Multi-region deployment
+
+### New Requirement
+
+Regional outage must meet declared RPO and RTO.
+
+### Existing Architecture
+
+Before this decision, FinAI has incident command pauses rollout, routes to stable, validates recovery and preserves model/input evidence. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds a second independent EKS/data stack receives promoted digests; global traffic shifts only after health and data-authority checks. This changes the previous stage by introducing the **RegionB_DB** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S27[Stage 26] --> R27[Rollback: requirement]
-  R27 --> C27[Controlled architecture change]
-  C27 --> E27[Evidence and feedback]
+  GlobalDNS --> RegionA_EKS
+  RegionA_EKS --> RegionA_DB
+  RegionA_DB --> RegionB_EKS
+  RegionB_EKS --> RegionB_DB
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 28. Postmortem
+### New Failure Mode Introduced
 
-**New requirement.** The same batching regression could recur.
+Replication lag or split brain violates decision consistency.
 
-**Architecture change.** Write a blameless timeline and add representative load gates, canary latency analysis, and ownership.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track regional SLO, health checks, replication lag, capacity and failover time.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Regional keys/accounts and residency policy avoid one global privilege boundary.
+
+### Cost Impact
+
+Standby or active capacity plus replication roughly doubles baseline.
+
+### Migration and Rollback
+
+Fence writer, fail over, reconcile data, then plan failback as a migration. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Multi-region deployment** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 27: Internal platform and golden path
+
+### New Requirement
+
+More teams need the proven path without copying bespoke YAML.
+
+### Existing Architecture
+
+Before this decision, FinAI has a second independent EKS/data stack receives promoted digests; global traffic shifts only after health and data-authority checks. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds a portal/API scaffolds service, chart, pipeline, GitOps and observability contracts with supported escape hatches. This changes the previous stage by introducing the **PlatformAPI** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S28[Stage 27] --> R28[Postmortem: requirement]
-  R28 --> C28[Controlled architecture change]
-  C28 --> E28[Evidence and feedback]
+  DeveloperPortal --> ServiceTemplate
+  ServiceTemplate --> PipelineTemplate
+  PipelineTemplate --> GitOpsTemplate
+  GitOpsTemplate --> PlatformAPI
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 29. Multi-region expansion
+### New Failure Mode Introduced
 
-**New requirement.** A regional outage exceeds the recovery objective.
+Golden path drift or forced abstraction drives teams around platform.
 
-**Architecture change.** Add a warm region, replicated immutable artifacts/config, explicit database authority, and tested DNS failover.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track adoption, lead time, support demand, reliability and satisfaction.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
+
+Secure defaults and policy evidence ship with the template.
+
+### Cost Impact
+
+Platform team cost is justified by reduced team toil and incidents.
+
+### Migration and Rollback
+
+Version contracts, migrate cohorts and retain documented escape hatch. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Internal platform and golden path** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Stage 28: Staff-level governance and ownership model
+
+### New Requirement
+
+The platform requires durable strategy beyond its original builders.
+
+### Existing Architecture
+
+Before this decision, FinAI has a portal/API scaffolds service, chart, pipeline, GitOps and observability contracts with supported escape hatches. It remains the rollback boundary until the new path proves its acceptance criteria.
+
+### Architecture Change
+
+FinAI adds service catalog, ADRs, SLOs, ownership, deprecation policy and funded roadmaps govern shared capabilities. This changes the previous stage by introducing the **Roadmap** responsibility and its explicit owner.
+
+### Updated Diagram
 
 ```mermaid
 flowchart LR
-  S29[Stage 28] --> R29[Multi-region expansion: requirement]
-  R29 --> C29[Controlled architecture change]
-  C29 --> E29[Evidence and feedback]
+  Strategy --> ServiceCatalog
+  ServiceCatalog --> ADRs
+  ADRs --> Owners
+  Owners --> Roadmap
 ```
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### What Remains Unchanged
 
+Earlier artifact identity, review history and stated business SLO remain valid; this stage does not silently redefine upstream contracts.
 
-## 30. Platform product
+### New Failure Mode Introduced
 
-**New requirement.** Other FinAI teams repeat the same controls.
+Orphaned component or unclear decision rights lengthen incidents and migrations.
 
-**Architecture change.** Publish a versioned golden path with scorecard, docs, support boundary, adoption and lead-time measures.
+### Operational Signals
 
-**Why now.** This stage is required because the previous architecture cannot satisfy the new requirement without manual risk or an unbounded failure mode.
+Track ownership coverage, action age, adoption outcomes, toil and deprecation progress.
 
-**Trade-offs.** The change improves repeatability and evidence but adds an owned control surface, upgrade work, and a new failure path.
+### Security Impact
 
-```mermaid
-flowchart LR
-  S30[Stage 29] --> R30[Platform product: requirement]
-  R30 --> C30[Controlled architecture change]
-  C30 --> E30[Evidence and feedback]
-```
+Risk acceptance and exceptions have accountable approvers and expiry.
 
-**Interview takeaway.** Explain the constraint first, then the change, failure boundary, measurable signal, and the reason a simpler predecessor stopped being sufficient.
+### Cost Impact
+
+Fund product operations, not only initial tooling delivery.
+
+### Migration and Rollback
+
+Stage governance changes through stakeholder agreement; reverse policies that harm measured outcomes. Promotion requires a recorded success criterion and named decision maker.
+
+### Interview Takeaway
+
+Explain why **Staff-level governance and ownership model** became necessary now, the new state/ownership boundary, and how its rollback differs from repairing external or durable state.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS Architecture Center](https://aws.amazon.com/architecture/)
+* [Argo CD documentation](https://argo-cd.readthedocs.io/)

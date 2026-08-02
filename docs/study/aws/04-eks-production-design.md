@@ -1,6 +1,6 @@
 ---
 title: EKS Production Design
-tags: [aws, platform-engineering]
+tags: [aws, production, interview-prep]
 aliases: [EKS Production Design study note]
 ---
 
@@ -8,69 +8,98 @@ aliases: [EKS Production Design study note]
 
 ## 30-Second Answer
 
-EKS Production Design is the path from **Route 53 and ALB** to **RDS and observability**. The essential handoffs are managed EKS control plane, private multi-AZ subnets, system and application node groups, workload identity. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+Production EKS combines managed control plane with customer-owned VPC, access, add-ons, nodes and workload reliability. Multi-AZ design still depends on subnet IPs, quota and stateful dependency topology.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[Route 53 and ALB] --> N1[managed EKS control plane] --> N2[private multi-AZ subnets] --> N3[system and application node groups] --> N4[workload identity] --> N5[RDS and observability]
+  Route53 --> ALB --> EKS
+  EKS --> SystemNodes
+  EKS --> AppNodes
+  EKS --> GPUNodes
+  EKS --> RDS
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **workload identity** has different evidence and ownership from a failure at **managed EKS control plane**.
+## Core Components
 
-## Why It Exists
+The diagram names the authoritative intent, execution mechanism and external state. Their credentials, lifecycle and evidence must remain independently visible.
 
-Without eks production design, teams must manually coordinate route 53 and alb, system and application node groups, and rds and observability. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Use private nodes, controlled API endpoint, Pod Identity/IRSA, separate system/application/GPU capacity, PDBs and quotas. Upgrade control plane/add-ons then canary nodes within skew; retain old node group because control-plane downgrade is unavailable.
 
-**Route 53 and ALB** owns stage 1; **managed EKS control plane** owns stage 2; **private multi-AZ subnets** owns stage 3; **system and application node groups** owns stage 4; **workload identity** owns stage 5; **RDS and observability** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **Route 53 and ALB:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **managed EKS control plane:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **private multi-AZ subnets:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **system and application node groups:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **workload identity:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **RDS and observability:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy route 53 and alb with least privilege and an auditable change path. Isolate system and application node groups by environment and failure domain, make rds and observability observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| quota, IP, or zonal exhaustion defeats nominal capacity | Compare stage latency and revision at managed EKS control plane | Stop promotion and restore the last verified input |
-| an IAM trust policy grants a wider principal than intended | Inspect saturation, quotas, events, and pending work at system and application node groups | Add valid capacity or shed load; do not retry without a bound |
-| a shared account or network dependency widens blast radius | Compare the user result with RDS and observability and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| subnet IP exhaustion | CNI/free IP | expand/reclaim |
+| PDB blocks drain | eviction event | coordinate availability |
+| addon mismatch | health/logs | install compatible version |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+curl --fail --max-time 5 https://service/health
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across route 53 and alb and rds and observability improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **system and application node groups**, and what user-facing SLO proves it works?
-* What remains available when **managed EKS control plane** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to system and application node groups: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **EKS Production Design** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **Route 53 and ALB** send to **managed EKS control plane**?
-2. Which component stores or reports authoritative state?
-3. How does **workload identity** affect **RDS and observability**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

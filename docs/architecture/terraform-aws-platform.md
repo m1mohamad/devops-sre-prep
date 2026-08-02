@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [Terraform AWS Platform architecture]
 ---
 
+
 # Terraform AWS Platform
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by terraform aws platform; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Apply reviewed AWS changes with a trustworthy resource mapping and recover safely from interrupted execution.
 
 ## Architecture Diagram
 
@@ -28,25 +29,46 @@ flowchart TB
 
 ## Request or Control Flow
 
-A pull request runs a read-only plan against the correct remote-state workspace. Policy checks reject unsafe IAM, public networking, or missing controls; a human approves the reviewed plan before a constrained runner applies it. The AWS provider translates the graph into account-scoped API calls for VPC, IAM, EKS, and RDS.
+CI produces a plan with read-only credentials and policy checks; an approved apply uses stronger short-lived credentials. The backend stores encrypted, versioned state and coordinates locking. Providers call account roles; state is partitioned by lifecycle and blast radius.
 
-## Production Mechanics
+## Component Responsibilities
 
-Remote state records resource identity and dependency output; encryption, versioning, restricted access, and state locking prevent concurrent writers. Scheduled plans detect drift, but importing, removing, or replacing resources must be reviewed. Separate state by account and blast radius rather than placing the estate behind one lock.
+CI produces a plan with read-only credentials and policy checks; an approved apply uses stronger short-lived credentials. The backend stores encrypted, versioned state and coordinates locking. Providers call account roles; state is partitioned by lifecycle and blast radius.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** A stale plan applies after inputs or state change.
-* **Boundary:** Lost locking permits competing writers and inconsistent state.
-* **Boundary:** Provider throttling or partial apply requires a fresh plan, not blind replay.
+Configuration is intent; state maps Terraform addresses to provider object IDs and contains sensitive values; AWS is real infrastructure. Platform teams own modules/backends, service teams own declared inputs.
 
+## Security Boundaries
 
-For Terraform AWS Platform, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+Use OIDC and role assumption across accounts, KMS encryption, least backend access and protected approvals. Treat state as secret material and log who planned/applied.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The Terraform AWS Platform trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Partition state rather than creating one lock bottleneck. Provider/API quotas and graph dependencies bound apply concurrency; excessive parallelism worsens throttling.
+
+## Failure Modes
+
+Stale lock blocks writers; partial apply changes AWS before state completion; drift makes plan surprising; provider/schema upgrade breaks decode; moved address without moved block proposes replacement.
+
+## Recovery and Rollback
+
+Confirm no writer before force-unlock. Run refresh-only plan, inspect AWS and state versions, import or state mv under review. Restore a state version only to restore mapping—state restoration does not undo AWS changes.
+
+## Operational Metrics
+
+Measure plan/apply duration and failure; lock wait; drift count; policy denial; API throttle; state age/version; partial-change incident rate. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the Terraform AWS Platform diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Apply reviewed AWS changes with a trustworthy resource mapping and recover safely from interrupted execution.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

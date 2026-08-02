@@ -26,6 +26,11 @@ jobs:
       - run: python scripts/check_duplicate_content.py
       - run: python scripts/check_mermaid_blocks.py
       - run: python scripts/check_architecture_similarity.py
+      - run: python scripts/check_study_similarity.py
+      - run: python scripts/check_interview_quality.py
+      - run: python scripts/check_journey_quality.py
+      - run: python scripts/check_simulator_quality.py
+      - run: python -m py_compile scripts/*.py
       - run: python scripts/check_required_sections.py
       - run: python scripts/check_internal_links.py
       - run: mkdocs build --strict

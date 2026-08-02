@@ -1,6 +1,6 @@
 ---
 title: CRDs, Operators, and Admission
-tags: [kubernetes, platform-engineering]
+tags: [kubernetes, production, interview-prep]
 aliases: [CRDs, Operators, and Admission study note]
 ---
 
@@ -8,69 +8,96 @@ aliases: [CRDs, Operators, and Admission study note]
 
 ## 30-Second Answer
 
-CRDs, Operators, and Admission is the path from **CustomResourceDefinition** to **status and finalizer**. The essential handoffs are structural schema, conversion webhook, admission webhook, controller. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+A CRD extends the API schema; a controller supplies behavior. Admission evaluates writes synchronously, so a webhook has a different availability risk from an asynchronous operator.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[CustomResourceDefinition] --> N1[structural schema] --> N2[conversion webhook] --> N3[admission webhook] --> N4[controller] --> N5[status and finalizer]
+  Client --> API --> Admission --> CRDStore[(Custom Resource)]
+  CRDStore --> Informer --> Reconcile --> OwnedResources
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **controller** has different evidence and ownership from a failure at **structural schema**.
+## Core Components
 
-## Why It Exists
+Structural OpenAPI schema, version conversion, status subresource and conditions make an API operable. Webhooks require TLS, bounded timeout, explicit failurePolicy and safe match rules.
 
-Without crds, operators, and admission, teams must manually coordinate customresourcedefinition, admission webhook, and status and finalizer. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Choose a CRD for durable declarative domain intent with reconciliation, not merely to expose an HTTP endpoint. Controllers use owner references for in-cluster dependents and finalizers only for external cleanup. Admission mutation must be idempotent; validation should reject unsafe transitions. Conversion must preserve round trips during version upgrades.
 
-**CustomResourceDefinition** owns stage 1; **structural schema** owns stage 2; **conversion webhook** owns stage 3; **admission webhook** owns stage 4; **controller** owns stage 5; **status and finalizer** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **CustomResourceDefinition:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **structural schema:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **conversion webhook:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **admission webhook:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **controller:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **status and finalizer:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy customresourcedefinition with least privilege and an auditable change path. Isolate admission webhook by environment and failure domain, make status and finalizer observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| API or watch lag hides progress | Compare stage latency and revision at structural schema | Stop promotion and restore the last verified input |
-| resource, IP, or storage capacity blocks convergence | Inspect saturation, quotas, events, and pending work at admission webhook | Add valid capacity or shed load; do not retry without a bound |
-| a probe or policy reports a misleading serving state | Compare the user result with status and finalizer and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| webhook outage | API timeout | break glass per fail policy |
+| conversion bug | storedVersions/read failure | restore compatible converter |
+| stuck deletion | finalizer condition | repair cleanup |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+kubectl get events --sort-by=.lastTimestamp
+kubectl get all -A
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across customresourcedefinition and status and finalizer improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **admission webhook**, and what user-facing SLO proves it works?
-* What remains available when **structural schema** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to admission webhook: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **CRDs, Operators, and Admission** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **CustomResourceDefinition** send to **structural schema**?
-2. Which component stores or reports authoritative state?
-3. How does **controller** affect **status and finalizer**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

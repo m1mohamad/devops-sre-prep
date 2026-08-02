@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [Kubernetes Request Lifecycle architecture]
 ---
 
+
 # Kubernetes Request Lifecycle
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by kubernetes request lifecycle; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Explain a Deployment as persisted intent followed by multiple independent reconciliation loops and eventual serving readiness.
 
 ## Architecture Diagram
 
@@ -41,25 +42,46 @@ sequenceDiagram
 
 ## Request or Control Flow
 
-Submission returns after the API server validates and persists the Deployment, not after a Pod serves. The Deployment controller creates a ReplicaSet; its controller creates Pods. The scheduler binds each feasible Pod, the node kubelet asks CRI to start it and CNI to network its sandbox, then reports probe status. EndpointSlice controllers publish ready addresses consumed by the Service dataplane.
+The client writes through API authentication, authorization and admission into etcd. Deployment and ReplicaSet controllers create Pods asynchronously. Scheduler writes a binding; kubelet invokes CRI and CNI, reports status, and readiness eventually causes EndpointSlice membership and Service traffic.
 
-## Production Mechanics
+## Component Responsibilities
 
-Use generation, observedGeneration, revision, Pod UID, and Kubernetes events to identify the stalled handoff. Each stage is asynchronous and watch-driven, so diagnosis follows the first missing object or status transition rather than assuming a single transaction.
+The client writes through API authentication, authorization and admission into etcd. Deployment and ReplicaSet controllers create Pods asynchronously. Scheduler writes a binding; kubelet invokes CRI and CNI, reports status, and readiness eventually causes EndpointSlice membership and Service traffic.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** Quota or admission rejects creation before persistence.
-* **Boundary:** No feasible node leaves Pods Pending with scheduler events.
-* **Boundary:** A failing readiness probe keeps a Running Pod out of ready EndpointSlices.
+etcd stores objects; each controller owns only its reconciliation decision and status writes. Kubelet owns node-local runtime status; EndpointSlice controller derives ready backends; applications own meaningful readiness.
 
+## Security Boundaries
 
-For Kubernetes Request Lifecycle, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+Every write is authenticated and authorized; admission can mutate or reject. Service accounts and workload identity constrain runtime access; NetworkPolicy constrains data-plane reachability.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The Kubernetes Request Lifecycle trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Controllers consume queues with rate limits and can lag independently. Scheduler throughput, image pulls, CNI IP capacity and readiness dominate at scale.
+
+## Failure Modes
+
+Admission rejection creates no object; controller lag leaves stale desired state; unschedulable Pod remains Pending; CNI or image error blocks start; false readiness admits broken traffic.
+
+## Recovery and Rollback
+
+Fix the failed boundary and let reconciliation resume. Roll back Deployment template by reviewed Git change; verify observedGeneration, rollout status and EndpointSlices rather than Pod phase alone.
+
+## Operational Metrics
+
+Measure API write latency; controller workqueue depth/retries; scheduling latency; image pull and sandbox creation; readiness duration; ready endpoint count; rollout availability. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the Kubernetes Request Lifecycle diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Explain a Deployment as persisted intent followed by multiple independent reconciliation loops and eventual serving readiness.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

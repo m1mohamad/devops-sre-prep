@@ -1,6 +1,6 @@
 ---
 title: Modules, Providers, and Reuse
-tags: [iac, platform-engineering]
+tags: [iac, production, interview-prep]
 aliases: [Modules, Providers, and Reuse study note]
 ---
 
@@ -8,69 +8,96 @@ aliases: [Modules, Providers, and Reuse study note]
 
 ## 30-Second Answer
 
-Modules, Providers, and Reuse is the path from **root module** to **versioned module registry**. The essential handoffs are child module inputs, provider configuration, resource graph, outputs. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+A module is a versioned infrastructure contract, not a copy-reduction trick. Providers translate resources into API calls and their schema/version is part of that contract.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[root module] --> N1[child module inputs] --> N2[provider configuration] --> N3[resource graph] --> N4[outputs] --> N5[versioned module registry]
+  Consumer --> Module --> ProviderAlias --> AccountAPI
+  Module --> Outputs --> Consumer
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **outputs** has different evidence and ownership from a failure at **child module inputs**.
+## Core Components
 
-## Why It Exists
+The diagram names the authoritative intent, execution mechanism and external state. Their credentials, lifecycle and evidence must remain independently visible.
 
-Without modules, providers, and reuse, teams must manually coordinate root module, resource graph, and versioned module registry. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Keep inputs purposeful, outputs stable, validations/preconditions explicit and provider configuration in the root. Test examples and upgrade plans. Aliases express region/account instances; do not hide organizational credentials inside modules.
 
-**root module** owns stage 1; **child module inputs** owns stage 2; **provider configuration** owns stage 3; **resource graph** owns stage 4; **outputs** owns stage 5; **versioned module registry** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **root module:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **child module inputs:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **provider configuration:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **resource graph:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **outputs:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **versioned module registry:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy root module with least privilege and an auditable change path. Isolate resource graph by environment and failure domain, make versioned module registry observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| concurrent or out-of-band mutation creates state drift | Compare stage latency and revision at child module inputs | Stop promotion and restore the last verified input |
-| a broad state file enlarges blast radius | Inspect saturation, quotas, events, and pending work at resource graph | Add valid capacity or shed load; do not retry without a bound |
-| partial provider failure requires a new plan | Compare the user result with versioned module registry and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| breaking output | consumer plan | compatibility release |
+| provider schema change | upgrade plan | pin and migrate |
+| over-general module | conditional explosion | split by lifecycle |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+terraform plan
+git diff --exit-code
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across root module and versioned module registry improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **resource graph**, and what user-facing SLO proves it works?
-* What remains available when **child module inputs** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to resource graph: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Modules, Providers, and Reuse** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **root module** send to **child module inputs**?
-2. Which component stores or reports authoritative state?
-3. How does **outputs** affect **versioned module registry**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

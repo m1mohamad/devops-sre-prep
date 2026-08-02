@@ -104,17 +104,134 @@ extra:
 nav:
   - Home: index.md
   - Study Vault:
+      - Overview: study/index.md
       - Dashboard: study/00-interview-dashboard.md
       - System Map: study/01-system-map.md
       - Seven-Day Plan: study/02-seven-day-study-plan.md
-      - Kubernetes: study/kubernetes/index.md
-      - CI/CD: study/cicd/index.md
-      - Infrastructure as Code: study/iac/index.md
-      - AWS: study/aws/index.md
-      - Observability: study/observability/index.md
-      - AI Platform: study/ai-platform/index.md
-      - Platform Engineering: study/platform-engineering/index.md
-      - Interview Practice: study/interview/index.md
+      - Kubernetes:
+          - Overview: study/kubernetes/index.md
+          - "Kubernetes in One Page": study/kubernetes/01-kubernetes-in-one-page.md
+          - "Control Plane": study/kubernetes/02-control-plane.md
+          - "Reconciliation and Controllers": study/kubernetes/03-reconciliation-and-controllers.md
+          - "Scheduling and Capacity": study/kubernetes/04-scheduling-and-capacity.md
+          - "Networking: CNI, Services, and Ingress": study/kubernetes/05-networking-cni-services-ingress.md
+          - "Storage and CSI": study/kubernetes/06-storage-and-csi.md
+          - "CRDs, Operators, and Admission": study/kubernetes/07-crds-operators-and-admission.md
+          - "GitOps: Argo CD and Flux": study/kubernetes/08-gitops-argo-cd-and-flux.md
+          - "Service Mesh: Istio, Linkerd, and Cilium": study/kubernetes/09-service-mesh-istio-linkerd-cilium.md
+          - "Production Troubleshooting": study/kubernetes/10-production-troubleshooting.md
+      - CI/CD:
+          - Overview: study/cicd/index.md
+          - "Code to Production": study/cicd/01-code-to-production.md
+          - "CI Pipeline Design": study/cicd/02-ci-pipeline-design.md
+          - "Build Artifacts and Registries": study/cicd/03-build-artifacts-and-registries.md
+          - "Release and Deployment Strategies": study/cicd/04-release-and-deployment-strategies.md
+          - "GitOps Continuous Delivery": study/cicd/05-gitops-continuous-delivery.md
+          - "Supply Chain Security": study/cicd/06-supply-chain-security.md
+      - Infrastructure as Code:
+          - Overview: study/iac/index.md
+          - "IaC Mental Model": study/iac/01-iac-mental-model.md
+          - "Terraform State and Backends": study/iac/02-terraform-state-and-backends.md
+          - "Modules, Providers, and Reuse": study/iac/03-modules-providers-and-reuse.md
+          - "Plan, Apply, Drift, and Lifecycle": study/iac/04-plan-apply-drift-and-lifecycle.md
+          - "Terraform vs CloudFormation vs Crossplane": study/iac/05-terraform-vs-cloudformation-vs-crossplane.md
+          - "Ansible and Configuration Management": study/iac/06-ansible-and-configuration-management.md
+      - AWS:
+          - Overview: study/aws/index.md
+          - "AWS Platform Foundation": study/aws/01-aws-platform-foundation.md
+          - "VPC Networking and Connectivity": study/aws/02-vpc-networking-and-connectivity.md
+          - "IAM and Workload Identity": study/aws/03-iam-and-workload-identity.md
+          - "EKS Production Design": study/aws/04-eks-production-design.md
+          - "Load Balancing, DNS, and Edge": study/aws/05-load-balancing-dns-and-edge.md
+          - "Observability, Security, and Audit": study/aws/06-observability-security-and-audit.md
+          - "Multi-Account and Landing Zones": study/aws/07-multi-account-and-landing-zones.md
+      - Observability:
+          - Overview: study/observability/index.md
+          - "Metrics, Logs, and Traces": study/observability/01-metrics-logs-and-traces.md
+          - "Prometheus and Grafana": study/observability/02-prometheus-and-grafana.md
+          - "Loki, Tempo, and OpenTelemetry": study/observability/03-loki-tempo-and-opentelemetry.md
+          - "Alerting, SLOs, and Error Budgets": study/observability/04-alerting-slos-and-error-budgets.md
+          - "Production Debugging Method": study/observability/05-production-debugging-method.md
+      - AI Platform:
+          - Overview: study/ai-platform/index.md
+          - "AI Platform in One Page": study/ai-platform/01-ai-platform-in-one-page.md
+          - "GPU Nodes and Scheduling": study/ai-platform/02-gpu-nodes-and-scheduling.md
+          - "Model Training and Data Pipelines": study/ai-platform/03-model-training-and-data-pipelines.md
+          - "Model Serving: KServe, vLLM, and Triton": study/ai-platform/04-model-serving-kserve-vllm-triton.md
+          - "RAG, Vector Databases, and Model Gateways": study/ai-platform/05-rag-vector-databases-and-model-gateways.md
+          - "Production AI Platform Scenario": study/ai-platform/06-production-ai-platform-scenario.md
+      - Platform Engineering:
+          - Overview: study/platform-engineering/index.md
+          - "Platform as a Product": study/platform-engineering/01-platform-as-a-product.md
+          - "Golden Paths and Self-Service": study/platform-engineering/02-golden-paths-and-self-service.md
+          - "Platform APIs and Crossplane": study/platform-engineering/03-platform-apis-and-crossplane.md
+          - "Policy, Secrets, and Certificates": study/platform-engineering/04-policy-secrets-certificates.md
+          - "Developer Experience and Metrics": study/platform-engineering/05-developer-experience-and-metrics.md
+          - "Staff Engineer Trade-offs": study/platform-engineering/06-staff-engineer-tradeoffs.md
+      - Linux and Networking:
+          - Overview: study/linux-networking/index.md
+          - "Linux Troubleshooting Method": study/linux-networking/01-linux-troubleshooting-method.md
+          - "Processes, Memory, CPU, and I/O": study/linux-networking/02-processes-memory-cpu-and-io.md
+          - "systemd Services and Logs": study/linux-networking/03-systemd-services-and-logs.md
+          - "TCP, DNS, Routing, and Firewalls": study/linux-networking/04-tcp-dns-routing-and-firewalls.md
+          - "Containers, Namespaces, and cgroups": study/linux-networking/05-containers-namespaces-and-cgroups.md
+          - "Production Network Debugging": study/linux-networking/06-production-network-debugging.md
+      - Python and Bash:
+          - Overview: study/scripting/index.md
+          - "Python for Platform Engineers": study/scripting/01-python-for-platform-engineers.md
+          - "Bash for Production Automation": study/scripting/02-bash-for-production-automation.md
+          - "API and JSON Automation": study/scripting/03-api-and-json-automation.md
+          - "Safe Files, Processes, and Subprocesses": study/scripting/04-safe-files-processes-and-subprocesses.md
+          - "Scripting Interview Exercises": study/scripting/05-scripting-interview-exercises.md
+      - Go Fundamentals:
+          - Overview: study/go/index.md
+          - "Go for Platform Tools": study/go/01-go-for-platform-tools.md
+          - "Context, Errors, and Concurrency": study/go/02-context-errors-and-concurrency.md
+          - "controller-runtime Overview": study/go/03-controller-runtime-overview.md
+      - PostgreSQL and Redis:
+          - Overview: study/databases/index.md
+          - "PostgreSQL Production Operations": study/databases/01-postgresql-production-operations.md
+          - "PostgreSQL Backup, Restore, and HA": study/databases/02-postgresql-backup-restore-and-ha.md
+          - "PostgreSQL Performance and Connections": study/databases/03-postgresql-performance-and-connections.md
+          - "Redis Production Operations": study/databases/04-redis-production-operations.md
+          - "Redis Persistence, HA, and Failure": study/databases/05-redis-persistence-ha-and-failure.md
+          - "Database Incident Scenarios": study/databases/06-database-incident-scenarios.md
+      - Helm:
+          - Overview: study/helm/index.md
+          - "Helm Chart Anatomy": study/helm/01-helm-chart-anatomy.md
+          - "Helm Values, Templates, and Helpers": study/helm/02-values-templates-and-helpers.md
+          - "Helm Chart Testing and Release Safety": study/helm/03-chart-testing-and-release-safety.md
+          - "Helm Interview and Troubleshooting": study/helm/04-helm-interview-and-troubleshooting.md
+      - Container Security:
+          - Overview: study/container-security/index.md
+          - "Container Image Hardening": study/container-security/01-image-hardening.md
+          - "Container Runtime Security": study/container-security/02-runtime-security.md
+          - "SBOM, Signing, and Provenance": study/container-security/03-sbom-signing-and-provenance.md
+          - "Kubernetes Workload Hardening": study/container-security/04-kubernetes-workload-hardening.md
+      - Cost and Performance:
+          - Overview: study/cost-performance/index.md
+          - "Capacity and Cost Models": study/cost-performance/01-capacity-and-cost-models.md
+          - "Kubernetes Rightsizing": study/cost-performance/02-kubernetes-rightsizing.md
+          - "AWS Cost Controls": study/cost-performance/03-aws-cost-controls.md
+          - "Performance Investigation": study/cost-performance/04-performance-investigation.md
+      - Leadership:
+          - Overview: study/leadership/index.md
+          - "Platform Leadership": study/leadership/01-platform-leadership.md
+          - "Architecture Communication": study/leadership/02-architecture-communication.md
+          - "Mentoring and Technical Direction": study/leadership/03-mentoring-and-technical-direction.md
+          - "Incident Leadership": study/leadership/04-incident-leadership.md
+          - "Staff-Level Behavioural Stories": study/leadership/05-staff-level-behavioural-stories.md
+      - Interview Practice:
+          - Overview: study/interview/index.md
+          - "Introduction and Career Story": study/interview/01-introduction-and-career-story.md
+          - "Kubernetes Questions": study/interview/02-kubernetes-questions.md
+          - "CI/CD and GitOps Questions": study/interview/03-cicd-and-gitops-questions.md
+          - "IaC and Terraform Questions": study/interview/04-iac-and-terraform-questions.md
+          - "AWS Questions": study/interview/05-aws-questions.md
+          - "Observability and SRE Questions": study/interview/06-observability-and-sre-questions.md
+          - "AI Platform Questions": study/interview/07-ai-platform-questions.md
+          - "System Design Scenarios": study/interview/08-system-design-scenarios.md
+          - "Behavioural and Production Stories": study/interview/09-behavioural-and-production-stories.md
   - Handbook:
       - Overview: chapters/index.md
       - Knowledge Graph: knowledge-graph/index.md
@@ -142,7 +259,20 @@ nav:
       - AI Inference Platform: architecture/ai-inference-platform.md
       - Multi-Region Platform: architecture/multi-region-platform.md
       - Incident Response Loop: architecture/incident-response-loop.md
-  - Interview Companion: interview/index.md
+  - Interview Companion:
+      - Overview: interview/index.md
+      - Kubernetes: interview/kubernetes.md
+      - AWS: interview/aws.md
+      - CI/CD and GitOps: interview/cicd-gitops.md
+      - Terraform and IaC: interview/terraform-iac.md
+      - Observability and SRE: interview/observability-sre.md
+      - Linux and Networking: interview/linux-networking.md
+      - Security: interview/security.md
+      - Platform Engineering: interview/platform-engineering.md
+      - Databases: interview/databases.md
+      - Scripting and Automation: interview/scripting-automation.md
+      - AI Infrastructure: interview/ai-infrastructure.md
+      - System Design: interview/system-design.md
   - Production Simulator: simulator/index.md
   - Engineering Journey: journey/index.md
 

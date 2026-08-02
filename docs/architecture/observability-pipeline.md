@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [Observability Pipeline architecture]
 ---
 
+
 # Observability Pipeline
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by observability pipeline; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Preserve distinct telemetry signals while making them correlatable and ensuring the monitoring path is itself observable.
 
 ## Architecture Diagram
 
@@ -25,25 +26,46 @@ flowchart LR
 
 ## Request or Control Flow
 
-Metrics, logs, and traces have separate ingestion and storage paths so one high-volume signal cannot silently consume every other signal's budget. Prometheus or an OpenTelemetry Collector scrapes/receives metrics and remote-writes long-term storage. Agents ship logs to Loki; collectors export traces to Tempo. Grafana queries each backend, while actionable rules route through Alertmanager to on-call.
+Prometheus scrapes metrics and remote-writes; agents/Collectors transport logs to Loki, traces to Tempo and events to an event store. Collectors receive, batch, sample and export. Grafana queries stores; alert rules evaluate SLO symptoms. Profiles are optional and stored separately.
 
-## Production Mechanics
+## Component Responsibilities
 
-Propagate trace ID into structured logs and exemplars. Attach deployment revision, pod, node, cluster, and region as controlled attributes so an operator can move from an SLO burn to a trace, its logs, and the exact rollout. Limit label cardinality; trace IDs belong in logs/exemplars, not as metric labels.
+Prometheus scrapes metrics and remote-writes; agents/Collectors transport logs to Loki, traces to Tempo and events to an event store. Collectors receive, batch, sample and export. Grafana queries stores; alert rules evaluate SLO symptoms. Profiles are optional and stored separately.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** Collector backpressure drops data unless queues and memory limits are explicit.
-* **Boundary:** High-cardinality labels overload metrics storage.
-* **Boundary:** An alert on symptoms without ownership or runbook creates noise.
+Applications own instrumentation; collectors own buffering/processing, backends own durable retention, and alerting owns notification state. Telemetry is evidence, not the source of business truth.
 
+## Security Boundaries
 
-For Observability Pipeline, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+Redact sensitive attributes, authenticate exporters, encrypt transit/storage and restrict queries. Tenant boundaries must apply to every backend. Do not place user IDs or secrets in labels.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The Observability Pipeline trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Control metric series and Loki label cardinality; sample traces intentionally; batch/export with bounded memory. Remote write queues absorb brief loss but are not unlimited.
+
+## Failure Modes
+
+Collector backpressure drops data; remote write queue fills; cardinality overloads index; clock skew breaks trace order; alert path fails silently; sampling hides rare failures.
+
+## Recovery and Rollback
+
+Keep local buffers bounded, route critical alerts redundantly, and test synthetic telemetry. Reduce cardinality or ingestion before scaling storage blindly; replay only where queues support it.
+
+## Operational Metrics
+
+Measure scrape success and remote-write lag; Collector refused/dropped spans; Loki active streams; Tempo ingestion/query errors; alert delivery; exemplar links; correlation coverage for trace ID, revision, pod, node, cluster, account, region. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the Observability Pipeline diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Preserve distinct telemetry signals while making them correlatable and ensuring the monitoring path is itself observable.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

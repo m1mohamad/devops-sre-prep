@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [AI Inference Platform architecture]
 ---
 
+
 # AI Inference Platform
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by ai inference platform; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Serve tenant-isolated model revisions within latency and GPU budgets while degrading predictably during scarcity.
 
 ## Architecture Diagram
 
@@ -25,25 +26,46 @@ flowchart LR
 
 ## Request or Control Flow
 
-The API gateway terminates the public protocol and authentication; a model gateway applies tenant quotas, model/version routing, and admission. A bounded queue absorbs small bursts but rejects before deadlines become impossible. KServe can own the serving resource while vLLM handles LLM batching or Triton serves optimized model ensembles on GPU nodes.
+API gateway authenticates; model gateway applies tenant quota and admission before a bounded queue. vLLM, Triton or KServe batches on GPU nodes. A registry and object store supply revisions; node cache reduces cold starts; GitOps/controller rolls revisions.
 
-## Production Mechanics
+## Component Responsibilities
 
-Model weights are verified in object storage or a registry, staged into a node/local cache, then loaded before readiness. Scale on queue latency, requests or tokens in flight, and GPU saturation—not CPU. Track token throughput, queue latency, time-to-first-token, GPU memory, saturation, error rate, and end-to-end latency by model revision.
+API gateway authenticates; model gateway applies tenant quota and admission before a bounded queue. vLLM, Triton or KServe batches on GPU nodes. A registry and object store supply revisions; node cache reduces cold starts; GitOps/controller rolls revisions.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** Cold model loads violate latency objectives during scale-out.
-* **Boundary:** Unbounded queues convert overload into timeouts and wasted GPU work.
-* **Boundary:** GPU memory fragmentation or incompatible drivers leaves apparent capacity unusable.
+Registry owns model metadata, object storage owns weights, gateway owns admission, serving runtime owns batches, scheduler owns placement. Data governance defines prompt/response retention and residency.
 
+## Security Boundaries
 
-For AI Inference Platform, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+Use workload identity, encryption and per-tenant authorization. Classify prompts/outputs, redact telemetry, verify model provenance and prevent untrusted model code execution.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The AI Inference Platform trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Autoscale on queue/latency plus GPU metrics, not CPU alone. Bin-pack memory-compatible models but preserve headroom; GPU fragmentation and cloud quota limit useful capacity.
+
+## Failure Modes
+
+Queue saturation rejects requests; cold load violates latency; OOM kills server; fragmented memory strands GPU; bad revision corrupts quality; quota prevents node launch.
+
+## Recovery and Rollback
+
+Reject early with retry guidance, route to a smaller/fallback model where approved, or shed low-priority tenants. Abort revision rollout and pin prior model digest; warm caches before traffic.
+
+## Operational Metrics
+
+Measure time to first token; token throughput; queue latency and rejection rate; batch size; GPU utilization/memory; model load time; p95/p99 latency; quality and safety indicators. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the AI Inference Platform diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Serve tenant-isolated model revisions within latency and GPU budgets while degrading predictably during scarcity.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)

@@ -1,6 +1,6 @@
 ---
 title: Loki, Tempo, and OpenTelemetry
-tags: [observability, platform-engineering]
+tags: [observability, production, interview-prep]
 aliases: [Loki, Tempo, and OpenTelemetry study note]
 ---
 
@@ -8,69 +8,96 @@ aliases: [Loki, Tempo, and OpenTelemetry study note]
 
 ## 30-Second Answer
 
-Loki, Tempo, and OpenTelemetry is the path from **OpenTelemetry SDK** to **tail sampling**. The essential handoffs are Collector pipeline, Loki log store, Tempo trace store, Grafana correlation. In production, I verify each handoff independently, keep its identity and state boundary visible, and operate it against availability, latency, security, and recovery objectives.
+OpenTelemetry Collector receives, processes and exports telemetry; Loki indexes labels rather than full log text; Tempo stores traces cheaply by trace ID. Exemplars link a metric observation to a trace.
 
 ## Mental Model
 
+Do not mistake acknowledgement for completion. Identify authoritative desired state, the actor that makes progress, derived status, and the user-visible serving signal. The diagram below shows the actual relationships for this topic rather than a universal pipeline.
+
+## Architecture Diagram
+
 ```mermaid
 flowchart LR
-  N0[OpenTelemetry SDK] --> N1[Collector pipeline] --> N2[Loki log store] --> N3[Tempo trace store] --> N4[Grafana correlation] --> N5[tail sampling]
+  Apps --> OTelCollector --> Tempo
+  Agents --> OTelCollector --> Loki
+  Prometheus --> Exemplars --> Tempo
 ```
 
-Read this diagram as a concrete sequence, not a generic maturity loop: a failure after **Grafana correlation** has different evidence and ownership from a failure at **Collector pipeline**.
+## Core Components
 
-## Why It Exists
+The diagram names the authoritative intent, execution mechanism and external state. Their credentials, lifecycle and evidence must remain independently visible.
 
-Without loki, tempo, and opentelemetry, teams must manually coordinate opentelemetry sdk, tempo trace store, and tail sampling. The technology standardizes those interfaces so changes are repeatable, reviewable, and diagnosable. It is justified when the repeated operational risk exceeds the cost of owning the abstraction.
+## How It Actually Works
 
-## How It Works
+Deploy agent/gateway roles based on collection and tenancy, bound memory/batches and define sampling. Keep Loki labels low-cardinality; put trace ID, pod and revision in structured fields where queryable.
 
-**OpenTelemetry SDK** owns stage 1; **Collector pipeline** owns stage 2; **Loki log store** owns stage 3; **Tempo trace store** owns stage 4; **Grafana correlation** owns stage 5; **tail sampling** owns stage 6. Follow resource IDs, revisions, events, and timestamps across these stages; an acknowledgement at one stage never proves completion at the next.
+Every asynchronous boundary can accept work and fail before convergence. Preserve object addresses, resource versions, artifact digests, account/region and timestamps so evidence from two components can be correlated. Status is useful only when its producer and freshness are known.
 
-## Mechanisms
+## Production Design
 
-* **OpenTelemetry SDK:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Collector pipeline:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Loki log store:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Tempo trace store:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **Grafana correlation:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
-* **tail sampling:** Inspect its native state, events, latency, permissions, and capacity before moving to the next component.
+Design availability around the authoritative state and explicit failure domains shown above. Use reviewed, versioned configuration; test upgrade and recovery with representative scale; keep a known-good artifact/configuration; and define what the system does when its control plane or dependency is unavailable. Avoid allowing two reconcilers or automation systems to own the same field.
 
-## Production Architecture
+Operational readiness includes a user-oriented SLI, saturation/queue signals, an owner, a runbook and a tested rollback boundary. Capacity controls only solve genuine saturation: schema, permission, corruption, lock and compatibility failures require correction of that mechanism.
 
-Deploy opentelemetry sdk with least privilege and an auditable change path. Isolate tempo trace store by environment and failure domain, make tail sampling observable, and test loss of each dependency. Version the interface between stages so producers and consumers can roll independently.
+A production review should also document compatibility across one supported upgrade step, the maximum acceptable recovery window, and the evidence retained for audit. Practice failure injection at the boundary most likely to violate the user SLI, including a dependency timeout and a rejected configuration. Record the exact precondition for rollback, because rollback of configuration cannot reverse writes, external side effects, deleted data, or an incompatible schema migration. Finally, rehearse ownership transfer: the responder must know which team controls the failing component, which team owns customer communication, and which decision requires incident command.
 
 ## Failure Modes
 
-| Failure | Evidence | Response |
+| Failure | Discriminating evidence | Response |
 |---|---|---|
-| cardinality or volume overloads ingestion | Compare stage latency and revision at Collector pipeline | Stop promotion and restore the last verified input |
-| sampling removes the only evidence for a rare failure | Inspect saturation, quotas, events, and pending work at Tempo trace store | Add valid capacity or shed load; do not retry without a bound |
-| an unactionable alert pages without user impact | Compare the user result with tail sampling and upstream state | Mitigate first, preserve evidence, then repair the faulty contract |
+| collector backpressure | refused/dropped telemetry | reduce/load-shed |
+| Loki stream explosion | active streams | fix labels |
+| trace gaps | sampling/propagation | repair SDK/policy |
+
+## Troubleshooting Procedure
+
+1. Record impact, start time, one failing example and the last known-good revision.
+2. Compare a healthy cohort with the failure by node, zone, tenant, revision or dependency.
+3. Query the native state at the first divergent boundary; do not restart before capturing events and previous logs.
+4. Choose a reversible mitigation, change one variable and verify the user SLI.
+
+```bash
+curl --fail --max-time 5 https://service/health
+```
+
+## Security Considerations
+
+Authenticate workload and operator identities separately, authorize the narrow verb/resource/account, encrypt transport and sensitive state, and retain an audit principal. Bound admission/plugin timeouts and document break-glass with short-lived elevation. Supply-chain controls verify immutable digests; they do not prove runtime correctness.
+
+## Scaling and Cost
+
+Track request/queue rate, reconciliation or processing latency, saturation and retained state. Partition by real blast radius rather than arbitrary team count. More replicas do not repair corrupt state, invalid schemas, incompatible versions or denied permissions. Include idle resilience, cross-zone transfer, managed-service charges and telemetry cardinality in the cost model.
 
 ## Trade-offs
 
-More automation across opentelemetry sdk and tail sampling improves consistency but can propagate an error faster. Strong isolation narrows blast radius but increases cost and upgrades. Managed implementations reduce component toil; self-managed implementations offer control but require availability, backup, security patching, and on-call expertise.
+Automation improves consistency but can propagate a wrong declaration quickly. Isolation reduces correlated failure at the cost of duplicated capacity and operational surface. Managed services transfer selected component toil, not application ownership. Prefer the simplest implementation whose recovery and security boundaries satisfy the stated SLO.
 
 ## Lead-Level Follow-ups
 
-* Which team owns **Tempo trace store**, and what user-facing SLO proves it works?
-* What remains available when **Collector pipeline** is down?
-* Where is state durable, and how are restore and upgrade tested?
+* Which state is authoritative and which status can be stale?
+* What continues working when the control plane is unavailable?
+* Which exact signal stops a rollout, and who can invoke break-glass?
+* How are upgrade compatibility and recovery tested rather than assumed?
 
 ## My Experience Prompt
 
-Describe a change to tempo trace store: state the constraint, the exact signal that selected the design, the rollback boundary, and the durable guardrail you added.
+Describe a real **Loki, Tempo, and OpenTelemetry** decision: quantify the constraint and impact, name the decisive evidence, explain the rejected alternative, and identify the durable guardrail and owner.
 
 ## Recall Check
 
-1. What does **OpenTelemetry SDK** send to **Collector pipeline**?
-2. Which component stores or reports authoritative state?
-3. How does **Grafana correlation** affect **tail sampling**?
-4. Which capacity limit fails first at production scale?
-5. When is a simpler managed alternative preferable?
+1. Trace the state change without turning independent reconcilers into a linear chain.
+2. Name one failure that capacity cannot solve.
+3. Distinguish acknowledgement, observed status, readiness and user success.
+4. State the rollback unit and what it cannot reverse.
 
 ## Related Notes
 
 * [Category index](index.md)
 * [Interview dashboard](../00-interview-dashboard.md)
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [HashiCorp Terraform documentation](https://developer.hashicorp.com/terraform/docs)
+* [CNCF project documentation](https://www.cncf.io/projects/)

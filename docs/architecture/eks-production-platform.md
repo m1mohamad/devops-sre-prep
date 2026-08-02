@@ -4,11 +4,12 @@ tags: [architecture, platform-engineering]
 aliases: [EKS Production Platform architecture]
 ---
 
+
 # EKS Production Platform
 
 ## Design Goal
 
-This view names the real handoffs, state boundaries, and failure domains used by eks production platform; each arrow represents a concrete API call, watch, dataplane hop, or operator decision.
+Provide isolated, upgradeable Kubernetes capacity across availability zones with AWS identities and dependencies designed as explicit failure domains.
 
 ## Architecture Diagram
 
@@ -40,25 +41,46 @@ flowchart TB
 
 ## Request or Control Flow
 
-Route 53 directs traffic to an ALB whose controller targets ready workloads in private subnets. AWS operates the regional EKS control plane; separate system, general application, and tainted GPU node groups isolate capacity. Pods pull digest-pinned images from ECR and use IRSA or EKS Pod Identity for narrowly scoped access to Secrets Manager and RDS.
+Route 53 reaches ALB/NLB in public subnets; nodes and RDS/Redis remain private across AZs. Separate system, application and GPU groups; Karpenter or Cluster Autoscaler adds nodes. ECR, Secrets Manager, Pod Identity/IRSA and telemetry integrate through scoped roles.
 
-## Production Mechanics
+## Component Responsibilities
 
-Use multiple accounts for production, security, and shared services and spread subnets and node groups across AZs. Keep system add-ons schedulable during application saturation, reserve GPU nodes with taints, centralize metrics/logs/traces without making telemetry a serving dependency, and test upgrades one node group at a time.
+Route 53 reaches ALB/NLB in public subnets; nodes and RDS/Redis remain private across AZs. Separate system, application and GPU groups; Karpenter or Cluster Autoscaler adds nodes. ECR, Secrets Manager, Pod Identity/IRSA and telemetry integrate through scoped roles.
 
-## Failure Modes and Operations
+## State and Ownership Boundaries
 
-* **Boundary:** Subnet IP exhaustion blocks nodes or Pods despite available CPU.
-* **Boundary:** Mis-scoped workload identity exposes secrets cross-namespace.
-* **Boundary:** A zonal dependency defeats otherwise multi-AZ worker placement.
+AWS accounts isolate environments; AWS owns managed control plane while the platform team owns VPC, add-ons, nodes, access and upgrades. Workload teams own requests, PDBs and application SLOs.
 
+## Security Boundaries
 
-For EKS Production Platform, instrument every named handoff, preserve its native revision or resource identifiers, and give the pager to a team able to mitigate that component. Capacity and recovery tests must exercise the specific boundaries shown above rather than only process liveness.
+Prefer private API access with controlled operator path, scoped public CIDRs if needed, Pod Identity/IRSA instead of node roles, encrypted secrets and restricted security groups.
 
-## Security and Trade-offs
+## Scaling Behaviour
 
-The EKS Production Platform trust model authenticates boundary crossings, authorizes its narrowest mutation, encrypts transport and state, and retains the initiating principal. Stronger isolation and validation reduce blast radius but add latency and operational cost; bypasses trade short-term speed for untraceable production state. Prefer a degraded mode that preserves an already healthy serving path when its control plane is unavailable.
+Autoscalers need subnet IPs, EC2/GPU quota and schedulable instance types. Reserve system headroom; use Spot only with disruption-tolerant workloads; enforce ResourceQuota.
+
+## Failure Modes
+
+Subnet IP exhaustion blocks Pods/nodes; PDB prevents drain; incompatible add-on breaks networking; quota stops scale-out; cross-AZ database traffic adds latency/cost.
+
+## Recovery and Rollback
+
+Canary new node groups, upgrade control plane/add-ons in supported order, drain respecting PDBs, and retain old group until validation. Restore dependencies independently; EKS control-plane downgrade is not available.
+
+## Operational Metrics
+
+Measure node launch and pending Pods; free subnet IPs; control-plane/API errors; PDB-blocked evictions; add-on health; ALB targets; cost by node pool, NAT and transfer. Correlate every signal with the relevant revision and failure domain.
+
+## Trade-offs
+
+The design deliberately exchanges simplicity for control at the boundaries described above. Adopt only the mechanisms whose failure modes the team can test and operate; preserve an already healthy data plane when a control plane is unavailable.
 
 ## Interview Walkthrough
 
-Trace the EKS Production Platform diagram from its initiating actor to the user-visible result, name its durable-state change, then walk one failure backward from its symptom. Explain the rollback unit, the owner, and the metric that proves recovery.
+Start with **Provide isolated, upgradeable Kubernetes capacity across availability zones with AWS identities and dependencies designed as explicit failure domains.** Follow one real state change in the diagram, distinguish desired state from observed health, then explain the most dangerous failure, a reversible mitigation, and the evidence that proves recovery.
+
+## Further Reading
+
+* [Kubernetes documentation](https://kubernetes.io/docs/)
+* [AWS documentation](https://docs.aws.amazon.com/)
+* [CNCF projects](https://www.cncf.io/projects/)
