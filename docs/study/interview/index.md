@@ -15,3 +15,4 @@ aliases: [Practice questions]
 * [AI Platform Questions](07-ai-platform-questions.md)
 * [System Design Scenarios](08-system-design-scenarios.md)
 * [Behavioural and Production Stories](09-behavioural-and-production-stories.md)
+* [Platform Interview Rapid Review](10-platform-interview-rapid-review.md)

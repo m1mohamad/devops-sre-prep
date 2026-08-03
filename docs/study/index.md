@@ -11,3 +11,7 @@ This is the compact recall layer; deeper explanations remain in the handbook. St
 ## Start Here When the Repository Feels Too Large
 
 Use the [Core Path — End-to-End Platform](core-path/index.md) to understand the complete platform through one focused two-to-three-hour scenario.
+
+## Interview Soon
+
+Use the [Platform Interview Rapid Review](interview/10-platform-interview-rapid-review.md) for a focused final 60–90 minute rehearsal.

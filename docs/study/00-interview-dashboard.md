@@ -39,6 +39,10 @@ As an optional deeper exercise, read three linked notes, complete one [system-de
 
 Use the [study question index](interview/index.md) or the [full companion](../interview/index.md). Focus on Kubernetes request flow, immutable promotion, Terraform state boundaries, EKS upgrades, SLOs, and GPU saturation.
 
+## Interview in 90 Minutes
+
+Use the [Platform Interview Rapid Review](interview/10-platform-interview-rapid-review.md). Rehearse the introduction, five stories, rapid technical answers, and interviewer questions. Do not start a new deep-dive track.
+
 ## Production Scenarios
 
 Start with Pending Pods, GitOps drift, bad images, state locks, certificates, DNS, database pools, or GPU exhaustion in the [simulator](../simulator/index.md).

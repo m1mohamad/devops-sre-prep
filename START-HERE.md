@@ -4,6 +4,7 @@ Open this repository's root as your Obsidian vault, then use these entry points:
 
 - [Interview Dashboard](docs/study/00-interview-dashboard.md)
 - [Core Path — End-to-End Platform](docs/study/core-path/index.md)
+- [Platform Interview Rapid Review](docs/study/interview/10-platform-interview-rapid-review.md)
 - [System Map](docs/study/01-system-map.md)
 - [Seven-Day Study Plan](docs/study/02-seven-day-study-plan.md)
 - [Study Vault Overview](docs/study/index.md)
