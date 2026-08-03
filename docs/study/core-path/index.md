@@ -445,6 +445,8 @@ Answer from memory before following any deep-dive link:
 9. Why did CPU HPA miss the `fraud-v12` failure?
 10. Why is more GPU capacity an incomplete corrective action?
 
+After answering all ten from memory, compare your response with the [Core Path ideal answers](recall-answers.md).
+
 **Blank diagram-redraw exercise:** on an empty page draw six boxes for developer/delivery, foundation, Kubernetes, services, data, and operations. Add the artifact path, IaC path, payment path, telemetry path, and identity/secret path. Then compare it with the master diagram.
 
 **Incident-hypothesis exercise:** payment p95 and inference queue age rise immediately after a model change, but readiness and CPU remain healthy. Write three competing hypotheses, the discriminating evidence for each, and the safest reversible mitigation before reading the incident again.

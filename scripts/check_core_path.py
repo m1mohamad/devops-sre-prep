@@ -9,6 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE_PATH = ROOT / "docs/study/core-path/index.md"
+RECALL_ANSWERS = ROOT / "docs/study/core-path/recall-answers.md"
 REQUIRED_HEADINGS = [
     "# Core Path — End-to-End Platform Scenario",
     "## Why This Page Exists",
@@ -64,6 +65,18 @@ INTEGRATIONS = {
     "docs/study/index.md": "core-path/index.md",
     "docs/study/00-interview-dashboard.md": "core-path/index.md",
 }
+RECALL_QUESTIONS = [
+    "Why are Terraform state, GitOps intent, registry artifacts, and PostgreSQL backups different stores?",
+    "What evidence makes one image digest promotable, and why not rebuild for production?",
+    "What can Argo CD health prove, and what can it not prove?",
+    "How do Service, EndpointSlice, readiness, HPA, and node autoscaling interact?",
+    "Where are authentication and authorization applied in the payment path?",
+    "How do an outbox, idempotency key, retry cap, and dead-letter destination work together?",
+    "Which identities let a Pod obtain a secret without a static cloud key?",
+    "Which labels connect payment p95 to a specific model Pod and node?",
+    "Why did CPU HPA miss the `fraud-v12` failure?",
+    "Why is more GPU capacity an incomplete corrective action?",
+]
 
 
 def outside_fences(text: str) -> str:
@@ -92,6 +105,8 @@ def main() -> int:
 
     text = CORE_PATH.read_text(encoding="utf-8")
     prose = outside_fences(text)
+    if not RECALL_ANSWERS.is_file():
+        fail(errors, "docs/study/core-path/recall-answers.md is missing")
     positions: list[int] = []
     for heading in REQUIRED_HEADINGS:
         matches = list(re.finditer(rf"(?m)^{re.escape(heading)}$", prose))
@@ -139,6 +154,15 @@ def main() -> int:
         integration_text = (ROOT / relative).read_text(encoding="utf-8")
         if expected not in integration_text:
             fail(errors, f"Core Path is not linked from {relative}")
+
+    recall_position = prose.find("## Recall Exercise")
+    answers_position = prose.find("recall-answers.md", recall_position + 1)
+    if recall_position < 0 or answers_position < 0:
+        fail(errors, "Core Path must link to recall-answers.md after Recall Exercise")
+    for number, question in enumerate(RECALL_QUESTIONS, 1):
+        expected = f"{number}. {question}"
+        if len(re.findall(rf"(?m)^{re.escape(expected)}$", prose)) != 1:
+            fail(errors, f"original Recall Exercise question {number} is missing or changed")
 
     if errors:
         print("Core Path validation failed:")
