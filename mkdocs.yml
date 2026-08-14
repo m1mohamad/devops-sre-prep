@@ -110,8 +110,10 @@ nav:
       - Core Path Ideal Answers: study/core-path/recall-answers.md
       - System Map: study/01-system-map.md
       - Seven-Day Plan: study/02-seven-day-study-plan.md
+      - Seven-Day Senior Platform Interview Plan: study/03-senior-platform-interview-week.md
       - Kubernetes:
           - Overview: study/kubernetes/index.md
+          - Kubernetes Interview Memory Refresh: study/kubernetes/00-kubernetes-interview-refresh.md
           - "Kubernetes in One Page": study/kubernetes/01-kubernetes-in-one-page.md
           - "Control Plane": study/kubernetes/02-control-plane.md
           - "Reconciliation and Controllers": study/kubernetes/03-reconciliation-and-controllers.md
