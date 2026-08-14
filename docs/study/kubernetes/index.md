@@ -6,8 +6,9 @@ aliases: [Kubernetes notes]
 
 # Kubernetes Study Path
 
-Use one note per 20–30 minute session. Explain its diagram aloud, answer the recall check without looking, and connect one production story.
+For interview preparation, start with the Memory Refresh. Use the numbered notes only when a concept needs deeper reconstruction. Explain diagrams aloud, answer recall checks without looking, and connect one production story.
 
+* [Kubernetes Interview Memory Refresh](00-kubernetes-interview-refresh.md)
 * [Kubernetes in One Page](01-kubernetes-in-one-page.md)
 * [Control Plane](02-control-plane.md)
 * [Reconciliation and Controllers](03-reconciliation-and-controllers.md)
