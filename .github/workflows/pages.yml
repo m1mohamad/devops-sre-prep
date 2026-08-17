@@ -33,6 +33,7 @@ jobs:
       - run: python scripts/check_core_path.py
       - run: python scripts/check_interview_rapid_review.py
       - run: python scripts/check_kubernetes_refresh.py
+      - run: python scripts/check_production_platform_scenario.py
       - run: python scripts/check_conflict_markers.py
       - run: python -m py_compile scripts/*.py
       - run: python scripts/check_required_sections.py
