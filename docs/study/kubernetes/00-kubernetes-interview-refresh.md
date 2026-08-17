@@ -233,7 +233,7 @@ resources:
 
 The node might have label `accelerator=a10g` and taint `workload=gpu:NoSchedule`. The selector requires that class; the toleration permits entry; the extended-resource request requires an advertised GPU. All constraints must intersect.
 
-When a Pod is Pending, read the `FailedScheduling` event literally. Causes include CPU/memory requests, selectors, affinity, taints, topology spread, PVC zone topology, GPU availability, ResourceQuota, node-group limits, cloud quota, and subnet/IP exhaustion. Some prevent scheduler feasibility; others prevent a node provisioner from satisfying an unschedulable Pod. Separate “no current node fits” from “new infrastructure cannot be created.”
+When a Pod is Pending, read the `FailedScheduling` event literally. Causes include CPU/memory requests, selectors, affinity, taints, topology spread, PVC zone topology, GPU availability, node-group limits, cloud quota, and subnet/IP exhaustion. Some prevent scheduler feasibility; others prevent a node provisioner from satisfying an unschedulable Pod. Separate “no current node fits” from “new infrastructure cannot be created.”
 
 **Deep dives:** [Scheduling and Capacity](04-scheduling-and-capacity.md) · [GPU nodes](../ai-platform/02-gpu-nodes-and-scheduling.md)
 
@@ -287,11 +287,12 @@ flowchart LR
   SC --> CC[CSI controller: provision]
   CC --> PV[PV: storage object]
   PV --> S[Scheduler: topology]
-  S --> CN[CSI node: attach/stage/mount]
+  S --> CA[CSI controller: attach]
+  CA --> CN[CSI node: stage/mount]
   CN --> P[Pod filesystem]
 ```
 
-A PVC requests capacity and access modes. A StorageClass names provisioning parameters, topology/binding mode, and reclaim behavior. The CSI controller plugin provisions backend storage; Kubernetes represents the result as a PV. The scheduler considers volume topology, then the CSI node plugin participates in attach, stage, and mount. `VolumeAttachment` records controller-managed attachment intent for attachable volumes; `VolumeSnapshot` represents snapshot intent through a snapshot-capable CSI driver.
+A PVC requests capacity and access modes. A StorageClass names provisioning parameters, topology/binding mode, and reclaim behavior. The CSI controller plugin provisions backend storage; Kubernetes represents the result as a PV. The scheduler considers volume topology, then the CSI controller side attaches an attachable volume and the CSI node plugin stages and mounts it. `VolumeAttachment` records controller-managed attachment intent for attachable volumes; `VolumeSnapshot` represents snapshot intent through a snapshot-capable CSI driver.
 
 `Immediate` provisioning occurs when the claim appears and can select a zone before Pod placement. `WaitForFirstConsumer` delays provisioning until scheduling context is known, avoiding a volume in a zone where the Pod cannot run. Once a zonal volume exists, its node affinity can force the Pod into that AZ; available compute and every other constraint must also fit there.
 
@@ -418,6 +419,8 @@ request → authentication → authorization → mutating admission → validati
 Mutating admission webhooks default or alter requests; validating webhooks accept/reject without mutation. Built-in validation and validating admission run after mutation. `ValidatingAdmissionPolicy` expresses in-process CEL-based validation and can avoid an external webhook for suitable policies. Webhook timeout, `failurePolicy`, namespace/object selectors, match rules, and side effects determine both scope and availability impact.
 
 An unavailable webhook plus `failurePolicy: Fail` can block matching API writes. `Ignore` favors availability but may admit noncompliant objects. Choose per risk: keep webhooks highly available, fast, narrowly scoped, observable, and excluded from dependencies that create bootstrap deadlock. Plan emergency recovery and test certificate rotation. A mutation can also surprise GitOps diffing, so understand ownership/defaulting.
+
+`ResourceQuota`, `LimitRange`, and policy checks run on this write path. A quota violation normally rejects creation before a Pod object exists, so troubleshoot the API/admission response rather than `FailedScheduling`.
 
 Interview implication: admission is on the write path; distinguish security policy correctness from the reliability of its enforcement service.
 

@@ -99,23 +99,33 @@ def main() -> int:
         if re.match(r"^(?:[a-z]+:|/|~|[A-Za-z]:[\\/])", target):
             errors.append(f"non-relative internal link: {target}")
 
-    integrations = {
-        "docs/study/kubernetes/index.md": "00-kubernetes-interview-refresh.md",
-        "docs/study/00-interview-dashboard.md": "kubernetes/00-kubernetes-interview-refresh.md",
-        "START-HERE.md": "docs/study/kubernetes/00-kubernetes-interview-refresh.md",
-        "mkdocs.yml": "study/kubernetes/00-kubernetes-interview-refresh.md",
-        "docs/study/index.md": "03-senior-platform-interview-week.md",
-        "docs/study/00-interview-dashboard.md": "03-senior-platform-interview-week.md",
-        "mkdocs.yml": "study/03-senior-platform-interview-week.md",
-    }
-    # The duplicate mkdocs key above intentionally resolves to the week target;
-    # check the refresh target separately.
-    for relative, target in integrations.items():
+    integrations = [
+        ("docs/study/kubernetes/index.md", "00-kubernetes-interview-refresh.md"),
+        ("docs/study/00-interview-dashboard.md", "kubernetes/00-kubernetes-interview-refresh.md"),
+        ("START-HERE.md", "docs/study/kubernetes/00-kubernetes-interview-refresh.md"),
+        ("mkdocs.yml", "study/kubernetes/00-kubernetes-interview-refresh.md"),
+        ("docs/study/index.md", "03-senior-platform-interview-week.md"),
+        ("docs/study/00-interview-dashboard.md", "03-senior-platform-interview-week.md"),
+        ("mkdocs.yml", "study/03-senior-platform-interview-week.md"),
+    ]
+    for relative, target in integrations:
         content = (ROOT / relative).read_text(encoding="utf-8") if (ROOT / relative).is_file() else ""
         if target not in content:
             errors.append(f"{target} is not linked from {relative}")
-    if "study/kubernetes/00-kubernetes-interview-refresh.md" not in (ROOT / "mkdocs.yml").read_text(encoding="utf-8"):
-        errors.append("refresh is absent from mkdocs.yml")
+    scheduling = section(text, "## Scheduling and Placement")
+    admission = section(text, "## Admission, Policy, and API Safety")
+    if "resourcequota" in scheduling.lower():
+        errors.append("ResourceQuota must not be listed as a FailedScheduling cause")
+    admission_normalized = re.sub(r"\s+", " ", admission.lower())
+    quota_rejection = re.search(
+        r"resourcequota.{0,160}(?:reject|deny|denied).{0,120}(?:request|creation|write)"
+        r"|resourcequota.{0,160}(?:request|creation|write).{0,120}(?:reject|deny|denied)",
+        admission_normalized,
+    )
+    if not quota_rejection:
+        errors.append(
+            "admission section must explicitly tie ResourceQuota to rejecting or denying object creation"
+        )
 
     all_new = text + "\n" + WEEK.read_text(encoding="utf-8")
     prohibited = r"(?m)^\s*(?:!!!|\?\?\?\+?|===)(?:\s|$)|^\s*<(?:div|details|summary)(?:\s|>)"
