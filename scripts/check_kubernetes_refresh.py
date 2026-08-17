@@ -116,8 +116,16 @@ def main() -> int:
     admission = section(text, "## Admission, Policy, and API Safety")
     if "resourcequota" in scheduling.lower():
         errors.append("ResourceQuota must not be listed as a FailedScheduling cause")
-    if "resourcequota" not in admission.lower() or "reject" not in admission.lower():
-        errors.append("admission section must explain that ResourceQuota can reject creation")
+    admission_normalized = re.sub(r"\s+", " ", admission.lower())
+    quota_rejection = re.search(
+        r"resourcequota.{0,160}(?:reject|deny|denied).{0,120}(?:request|creation|write)"
+        r"|resourcequota.{0,160}(?:request|creation|write).{0,120}(?:reject|deny|denied)",
+        admission_normalized,
+    )
+    if not quota_rejection:
+        errors.append(
+            "admission section must explicitly tie ResourceQuota to rejecting or denying object creation"
+        )
 
     all_new = text + "\n" + WEEK.read_text(encoding="utf-8")
     prohibited = r"(?m)^\s*(?:!!!|\?\?\?\+?|===)(?:\s|$)|^\s*<(?:div|details|summary)(?:\s|>)"
