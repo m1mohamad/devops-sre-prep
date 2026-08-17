@@ -23,6 +23,10 @@ Use the [complete seven-day plan](02-seven-day-study-plan.md): delivery, Kuberne
 
 Follow the [Seven-Day Senior Platform Interview Plan](03-senior-platform-interview-week.md). Start with the [Kubernetes Interview Memory Refresh](kubernetes/00-kubernetes-interview-refresh.md), then use the [Core Path](core-path/index.md) to reconnect Kubernetes to the wider platform.
 
+## One Scenario to Rehearse
+
+Read the [Production Platform Interview Scenario](04-production-platform-scenario.md) end-to-end, redraw Atlas, and answer its senior questions aloud. It connects Kubernetes, AWS/EKS, delivery, scaling, Terraform, security, SRE, and system design without introducing disconnected examples.
+
 ## Fast Links
 
 [Kubernetes](kubernetes/index.md) · [CI/CD](cicd/index.md) · [IaC](iac/index.md) · [AWS](aws/index.md) · [Observability](observability/index.md) · [AI platform](ai-platform/index.md) · [Platform engineering](platform-engineering/index.md)
