@@ -6,6 +6,7 @@ Open this repository's root as your Obsidian vault, then use these entry points:
 - [Platform / DevOps / SRE Mental Models](docs/study/04-platform-devops-sre-mental-models.md)
 - [Seven-Day Senior Platform Interview Plan](docs/study/03-senior-platform-interview-week.md)
 - [Production Platform Interview Scenario](docs/study/04-production-platform-scenario.md)
+- [Golden Path: From Idea to Production](docs/study/05-golden-path-from-idea-to-production.md)
 - [Core Path — End-to-End Platform](docs/study/core-path/index.md)
 - [Kubernetes Interview Memory Refresh](docs/study/kubernetes/00-kubernetes-interview-refresh.md)
 - [Platform Interview Rapid Review](docs/study/interview/10-platform-interview-rapid-review.md)

@@ -8,7 +8,7 @@ aliases: [Dashboard]
 
 ## Reconstruct Before You Memorize
 
-Start with the [Platform / DevOps / SRE Mental Models](04-platform-devops-sre-mental-models.md) for a 10–15 minute framework built around intent, ownership, boundaries, evidence, and blast radius. Then move through the [interview week plan](03-senior-platform-interview-week.md), [production scenario](04-production-platform-scenario.md), and relevant deep dives.
+Start with the [Platform / DevOps / SRE Mental Models](04-platform-devops-sre-mental-models.md) for a 10–15 minute framework built around intent, ownership, boundaries, evidence, and blast radius. Then move through the [interview week plan](03-senior-platform-interview-week.md), [production scenario](04-production-platform-scenario.md), [Golden Path case study](05-golden-path-from-idea-to-production.md), and relevant deep dives.
 
 ## Today’s Study Topic
 
@@ -30,6 +30,8 @@ Follow the [Seven-Day Senior Platform Interview Plan](03-senior-platform-intervi
 ## One Scenario to Rehearse
 
 Read the [Production Platform Interview Scenario](04-production-platform-scenario.md) end-to-end, redraw Atlas, and answer its senior questions aloud. It connects Kubernetes, AWS/EKS, delivery, scaling, Terraform, security, SRE, and system design without introducing disconnected examples.
+
+Then use [Golden Path: From Idea to Production](05-golden-path-from-idea-to-production.md) to explain how a developer travels through those capabilities—from Create Service to an owned, observable workload and its Day-2 lifecycle.
 
 ## Fast Links
 

@@ -35,17 +35,18 @@ jobs:
       - run: python scripts/check_kubernetes_refresh.py
       - run: python scripts/check_production_platform_scenario.py
       - run: python scripts/check_platform_mental_models.py
+      - run: python scripts/check_golden_path.py
       - run: python scripts/check_conflict_markers.py
       - run: python -m py_compile scripts/*.py
       - run: python scripts/check_required_sections.py
       - run: python scripts/check_internal_links.py
       - run: mkdocs build --strict
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           path: site
   deploy:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       pages: write
       id-token: write
