@@ -106,12 +106,13 @@ nav:
   - Study Vault:
       - Overview: study/index.md
       - Dashboard: study/00-interview-dashboard.md
+      - Platform / DevOps / SRE Mental Models: study/04-platform-devops-sre-mental-models.md
+      - Seven-Day Senior Platform Interview Plan: study/03-senior-platform-interview-week.md
+      - Production Platform Interview Scenario: study/04-production-platform-scenario.md
       - Core Path — End-to-End Platform: study/core-path/index.md
       - Core Path Ideal Answers: study/core-path/recall-answers.md
       - System Map: study/01-system-map.md
       - Seven-Day Plan: study/02-seven-day-study-plan.md
-      - Seven-Day Senior Platform Interview Plan: study/03-senior-platform-interview-week.md
-      - Production Platform Interview Scenario: study/04-production-platform-scenario.md
       - Kubernetes:
           - Overview: study/kubernetes/index.md
           - Kubernetes Interview Memory Refresh: study/kubernetes/00-kubernetes-interview-refresh.md
