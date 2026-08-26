@@ -57,6 +57,8 @@ The model is deliberately an ordinary production dependency with unusual resourc
 
 ## The Complete Platform in One Diagram
 
+This diagram inventories the connected platform capabilities. Follow it with [Golden Path: From Idea to Production](../05-golden-path-from-idea-to-production.md) for the specific developer journey that composes them into one supported service workflow.
+
 ```mermaid
 flowchart TB
   User[Customer / Partner / Mobile App]
