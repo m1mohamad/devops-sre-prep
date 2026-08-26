@@ -36,7 +36,7 @@ What is the blast radius?
 | 7 | **Requests reserve; limits constrain** | Reservation vs boundary | Requests drive scheduler capacity accounting; limits are runtime enforcement boundaries. Limits do **not** reserve capacity. |
 | 8 | **Taints repel; tolerations permit; affinity attracts** | Restricted room → access pass → preferred table | A toleration allows a Pod to remain eligible despite a taint; affinity influences selection. **A toleration does not force placement.** |
 | 9 | **Startup → readiness → liveness** | Restaurant: opening → accepting customers → healthy enough to stay open | Startup protects initialization; readiness controls traffic eligibility; liveness controls restart. |
-| 10 | **Horizontal vs vertical scaling** | More checkout lanes vs a faster checkout lane | HPA adds Pods; vertical scaling makes each unit bigger. Node autoscaling or Karpenter adds infrastructure capacity for Pods. |
+| 10 | **Horizontal vs vertical scaling** | More checkout lanes vs a faster checkout lane | HPA changes the workload's desired replica count; the workload controller creates or removes Pods. Node autoscaling or Karpenter supplies infrastructure capacity. |
 | 11 | **Queue = shock absorber** | Waiting room between producer and worker | Kafka or SQS buffers bursts and enables backpressure, but queue depth and processing age expose overload. |
 | 12 | **Cache trades freshness and complexity for speed** | Keep frequently used tools on your desk | Redis or a CDN reduces backend load and latency at the cost of invalidation, consistency, and failure-mode complexity. |
 | 13 | **State changes architecture** | Replaceable cattle vs a diary containing unique information | Databases, PV/PVC, StatefulSets, and backups require explicit durability and recovery decisions; identity alone is not HA. |
@@ -302,11 +302,12 @@ Vertical
 
 ```text
 traffic rises
-→ HPA wants more Pods
-→ some Pods Pending
-→ insufficient node capacity
+→ HPA raises desired replicas
+→ Deployment / ReplicaSet creates additional Pods
+→ some Pods remain Pending
+→ current node capacity is insufficient
 → Karpenter / Cluster Autoscaler adds capacity
-→ Pods schedule
+→ scheduler places the Pending Pods
 ```
 
 Workload scaling changes application replicas or size; infrastructure scaling supplies nodes. Neither fixes a saturated downstream dependency by itself.
