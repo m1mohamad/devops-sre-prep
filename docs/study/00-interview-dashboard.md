@@ -6,6 +6,10 @@ aliases: [Dashboard]
 
 # Interview Dashboard
 
+## Reconstruct Before You Memorize
+
+Start with the [Platform / DevOps / SRE Mental Models](04-platform-devops-sre-mental-models.md) for a 10–15 minute framework built around intent, ownership, boundaries, evidence, and blast radius. Then move through the [interview week plan](03-senior-platform-interview-week.md), [production scenario](04-production-platform-scenario.md), and relevant deep dives.
+
 ## Today’s Study Topic
 
 Open [Kubernetes in One Page](kubernetes/01-kubernetes-in-one-page.md), explain its control loop aloud, then answer its recall check.
